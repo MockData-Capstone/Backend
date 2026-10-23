@@ -6,7 +6,7 @@
 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)
-![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 
 > 📄 이 README는 Notion [ZIPFIT PRD](https://app.notion.com/p/3ffb90513fa081478a30fd5e21aa6743) v0.8 · [ZIPFIT 기능명세서](https://app.notion.com/p/3ffb90513fa08135b7d9e3e1e0cbe012) v0.9 기준으로 작성되었습니다. Notion 게스트 권한만 있어 Claude 연동이 안 되는 팀원을 위해 **[`PRD.md`](./PRD.md) / [`기능명세서.md`](./기능명세서.md)** 로 전문을 이 저장소에도 미러링해 두었습니다. 원본은 Notion이며, 더 최신일 수 있습니다.
@@ -109,7 +109,7 @@ flowchart TD
 
 | 계층 | 기술 |
 |---|---|
-| **Language / Build** | Kotlin 2.3.21, Gradle (Groovy DSL), **Java 25 toolchain** |
+| **Language / Build** | Kotlin 2.3.21, Gradle (Groovy DSL), **Java 21 toolchain** |
 | **Framework** | Spring Boot 4.1.1 |
 | **Web / 실시간** | Spring Web MVC, Spring WebSocket |
 | **DB** | Spring Data JPA + PostgreSQL |
@@ -141,16 +141,16 @@ flowchart TD
 
 | 항목 | 버전 | 비고 |
 |---|---|---|
-| JDK | **25** | `build.gradle`의 toolchain 요구사항 |
+| JDK | **21** | `build.gradle`의 toolchain 요구사항 |
 | PostgreSQL | 14 이상 권장 | 로컬 또는 Docker |
 | Git | - | - |
 
-> ⚠️ **JDK 25 관련 주의**
-> `build.gradle`이 **Java 25 toolchain**을 요구한다. 로컬에 JDK 25가 없으면
+> ⚠️ **JDK 21 관련 주의**
+> `build.gradle`이 **Java 21 toolchain**을 요구한다. 로컬에 JDK 21이 없으면
 > `./gradlew build` 실행 시 **toolchain 다운로드 저장소 미설정**으로 실패한다.
 >
 > 해결 방법 **둘 중 하나**:
-> 1. JDK 25 직접 설치 (권장 — 예: Temurin 25)
+> 1. JDK 21 직접 설치 (권장 — 예: Temurin 21)
 > 2. `settings.gradle`에 Foojay toolchain resolver 플러그인 추가
 >    ```groovy
 >    plugins {
