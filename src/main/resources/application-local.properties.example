@@ -21,3 +21,13 @@ spring.datasource.url=jdbc:h2:mem:zipfit;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;
 spring.datasource.username=sa
 spring.datasource.password=
 spring.datasource.driver-class-name=org.h2.Driver
+
+# 메일 (AUTH-07 비밀번호 재설정). 비워 두면 메일 대신 서버 로그에 재설정 링크가 찍힌다.
+# Gmail 예시: 구글 계정 > 보안 > 2단계 인증 > 앱 비밀번호 발급 후 사용
+#spring.mail.host=smtp.gmail.com
+#spring.mail.port=587
+#spring.mail.username=
+#spring.mail.password=
+#spring.mail.properties.mail.smtp.auth=true
+#spring.mail.properties.mail.smtp.starttls.enable=true
+#app.mail.from=

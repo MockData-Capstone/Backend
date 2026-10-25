@@ -23,6 +23,7 @@ public class JwtProvider {
 	private static final String CLAIM_PROFILE_IMAGE = "profileImageUrl";
 	private static final String TYPE_ACCESS = "access";
 	private static final String TYPE_SIGNUP = "signup";
+	private static final String TYPE_LINK = "link";
 
 	private final JwtProperties properties;
 	private final SecretKey key;
@@ -57,11 +58,30 @@ public class JwtProvider {
 		}
 	}
 
+	/** 처음 온 소셜 회원이 동의·닉네임을 입력하고 가입을 마칠 때까지 쓰는 임시 토큰 (AUTH-02) */
 	public String createSignupToken(OAuthUserInfo info) {
+		return createSocialToken(info, TYPE_SIGNUP);
+	}
+
+	/** 가입 토큰을 검증해 소셜 인증 결과를 돌려준다. 유효하지 않으면 빈 값. */
+	public Optional<OAuthUserInfo> parseSignupToken(String token) {
+		return parseSocialToken(token, TYPE_SIGNUP);
+	}
+
+	/** 같은 이메일의 자체 가입 회원과 연동할 때까지 쓰는 임시 토큰 (AUTH-08) */
+	public String createLinkToken(OAuthUserInfo info) {
+		return createSocialToken(info, TYPE_LINK);
+	}
+
+	public Optional<OAuthUserInfo> parseLinkToken(String token) {
+		return parseSocialToken(token, TYPE_LINK);
+	}
+
+	private String createSocialToken(OAuthUserInfo info, String type) {
 		Instant now = Instant.now();
 		return Jwts.builder()
 			.subject(info.providerUserId())
-			.claim(CLAIM_TYPE, TYPE_SIGNUP)
+			.claim(CLAIM_TYPE, type)
 			.claim(CLAIM_PROVIDER, info.provider().name())
 			.claim(CLAIM_EMAIL, info.email())
 			.claim(CLAIM_PROFILE_IMAGE, info.profileImageUrl())
@@ -71,11 +91,10 @@ public class JwtProvider {
 			.compact();
 	}
 
-	/** 가입 토큰을 검증해 소셜 인증 결과를 돌려준다. 유효하지 않으면 빈 값. */
-	public Optional<OAuthUserInfo> parseSignupToken(String token) {
+	private Optional<OAuthUserInfo> parseSocialToken(String token, String type) {
 		try {
 			Claims claims = parse(token);
-			if (!TYPE_SIGNUP.equals(claims.get(CLAIM_TYPE, String.class))) {
+			if (!type.equals(claims.get(CLAIM_TYPE, String.class))) {
 				return Optional.empty();
 			}
 			return Optional.of(new OAuthUserInfo(

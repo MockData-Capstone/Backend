@@ -24,7 +24,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 	public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
 		throws IOException {
 		ErrorCode errorCode = Boolean.TRUE.equals(request.getAttribute(JwtAuthenticationFilter.TOKEN_EXPIRED_ATTRIBUTE))
-			? ErrorCode.ACCESS_TOKEN_EXPIRED
+			? ErrorCode.AUTH_TOKEN_EXPIRED
 			: ErrorCode.UNAUTHORIZED;
 		response.setStatus(errorCode.getStatus().value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);

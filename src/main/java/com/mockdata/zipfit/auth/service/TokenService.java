@@ -8,13 +8,8 @@ import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
 import com.mockdata.zipfit.common.security.JwtProperties;
 import com.mockdata.zipfit.common.security.JwtProvider;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import com.mockdata.zipfit.common.security.SecureTokens;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HexFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,8 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TokenService {
 
-	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
 	private final JwtProvider jwtProvider;
 	private final JwtProperties jwtProperties;
 	private final RefreshTokenRepository refreshTokenRepository;
@@ -39,8 +32,10 @@ public class TokenService {
 		Instant now = Instant.now();
 		refreshTokenRepository.deleteExpiredByUserId(user.getId(), now);
 
-		String refreshToken = generateRefreshToken();
-		refreshTokenRepository.save(new RefreshToken(user, hash(refreshToken), now.plus(jwtProperties.refreshTokenExpiration())));
+		String refreshToken = SecureTokens.generate();
+		refreshTokenRepository.save(
+			new RefreshToken(user, SecureTokens.sha256(refreshToken), now.plus(jwtProperties.refreshTokenExpiration()))
+		);
 		return new TokenResponse(
 			jwtProvider.createAccessToken(user.getId(), now),
 			refreshToken,
@@ -50,7 +45,7 @@ public class TokenService {
 
 	@Transactional
 	public TokenResponse reissue(String refreshToken) {
-		RefreshToken saved = refreshTokenRepository.findByTokenHash(hash(refreshToken))
+		RefreshToken saved = refreshTokenRepository.findByTokenHash(SecureTokens.sha256(refreshToken))
 			.orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
 		if (saved.isExpired(Instant.now())) {
 			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
@@ -65,26 +60,12 @@ public class TokenService {
 	/** 로그아웃. 이미 없는 토큰이어도 성공으로 처리한다. */
 	@Transactional
 	public void revoke(String refreshToken) {
-		refreshTokenRepository.deleteByTokenHash(hash(refreshToken));
+		refreshTokenRepository.deleteByTokenHash(SecureTokens.sha256(refreshToken));
 	}
 
+	/** 모든 기기에서 로그아웃시킨다 (비밀번호 재설정 AUTH-07, 탈퇴 AUTH-06). */
 	@Transactional
 	public void revokeAll(Long userId) {
 		refreshTokenRepository.deleteAllByUserId(userId);
-	}
-
-	private String generateRefreshToken() {
-		byte[] bytes = new byte[32];
-		SECURE_RANDOM.nextBytes(bytes);
-		return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-	}
-
-	private String hash(String token) {
-		try {
-			byte[] digest = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-			return HexFormat.of().formatHex(digest);
-		} catch (NoSuchAlgorithmException e) {
-			throw new IllegalStateException(e);
-		}
 	}
 }
