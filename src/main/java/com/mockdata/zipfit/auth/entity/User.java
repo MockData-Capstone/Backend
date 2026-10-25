@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Locale;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,8 +31,12 @@ public class User extends BaseTimeEntity {
 	@Column(nullable = false, unique = true, length = NICKNAME_MAX_LENGTH)
 	private String nickname;
 
-	/** 소셜 제공자가 검증한 이메일만 저장한다. 선택 동의라 없을 수 있다. */
+	/** 자체 가입 회원은 로그인 ID(소문자로 저장), 소셜 회원은 제공자가 검증한 이메일. 소셜은 선택 동의라 없을 수 있다. */
 	private String email;
+
+	/** 자체 가입 회원의 BCrypt 해시. 소셜 전용 회원은 null. */
+	@Column(length = 100)
+	private String password;
 
 	/** null이면 프론트에서 기본 이미지를 보여준다. */
 	@Column(length = 1000)
@@ -40,15 +45,35 @@ public class User extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Instant privacyAgreedAt;
 
+	/** 소셜 가입 회원 */
 	public User(String nickname, String email, String profileImageUrl, Instant privacyAgreedAt) {
+		this(nickname, email, null, profileImageUrl, privacyAgreedAt);
+	}
+
+	/** 자체 가입 회원 (AUTH-01) */
+	public User(String nickname, String email, String password, String profileImageUrl, Instant privacyAgreedAt) {
 		this.nickname = nickname;
 		this.email = email;
+		this.password = password;
 		this.profileImageUrl = profileImageUrl;
 		this.privacyAgreedAt = privacyAgreedAt;
 	}
 
+	public boolean hasPassword() {
+		return password != null;
+	}
+
 	public void changeNickname(String nickname) {
 		this.nickname = nickname;
+	}
+
+	/** @param passwordHash 인코딩된 비밀번호 */
+	public void changePassword(String passwordHash) {
+		this.password = passwordHash;
+	}
+
+	public void changeProfileImage(String profileImageUrl) {
+		this.profileImageUrl = profileImageUrl;
 	}
 
 	public void resetProfileImage() {
@@ -61,5 +86,10 @@ public class User extends BaseTimeEntity {
 		}
 		int length = nickname.trim().length();
 		return length >= NICKNAME_MIN_LENGTH && length <= NICKNAME_MAX_LENGTH;
+	}
+
+	/** 이메일은 대소문자를 구분하지 않도록 소문자로 저장·비교한다. */
+	public static String normalizeEmail(String email) {
+		return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
 	}
 }

@@ -139,16 +139,16 @@ class AuthIntegrationTest {
 	void reissueRotatesRefreshToken() throws Exception {
 		Tokens tokens = registerKakaoUser("500", null);
 
-		String reissued = mockMvc.perform(json(post("/api/auth/reissue"), refreshBody(tokens.refreshToken())))
+		String reissued = mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(tokens.refreshToken())))
 			.andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		String newRefreshToken = JsonPath.read(reissued, "$.refreshToken");
 		assertThat(newRefreshToken).isNotEqualTo(tokens.refreshToken());
 
-		mockMvc.perform(json(post("/api/auth/reissue"), refreshBody(tokens.refreshToken())))
+		mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(tokens.refreshToken())))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_REFRESH_TOKEN.name()));
-		mockMvc.perform(json(post("/api/auth/reissue"), refreshBody(newRefreshToken)))
+		mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(newRefreshToken)))
 			.andExpect(status().isOk());
 	}
 
@@ -159,7 +159,7 @@ class AuthIntegrationTest {
 
 		mockMvc.perform(json(post("/api/auth/logout"), refreshBody(tokens.refreshToken())))
 			.andExpect(status().isNoContent());
-		mockMvc.perform(json(post("/api/auth/reissue"), refreshBody(tokens.refreshToken())))
+		mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(tokens.refreshToken())))
 			.andExpect(status().isUnauthorized());
 	}
 

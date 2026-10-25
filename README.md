@@ -213,6 +213,9 @@ java -jar build/libs/*.jar
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 OAuth 2.0 클라이언트 | - | ✅ (AUTH-02) |
 | `GOOGLE_REDIRECT_URI` | 구글 로그인 콜백 URI (프론트 콜백 페이지) | `http://localhost:5173/oauth/google/callback` | ✅ (AUTH-02) |
 | `CORS_ALLOWED_ORIGINS` | 프론트 origin (쉼표 구분) | `http://localhost:5173` | ⬜ |
+| `FRONTEND_URL` | 비밀번호 재설정 메일 링크의 프론트 주소 | `http://localhost:5173` | ⬜ (AUTH-07) |
+| `spring.mail.*`, `MAIL_FROM` | SMTP 설정 / 보내는 주소. 없으면 메일 대신 서버 로그에 출력 | Gmail 앱 비밀번호 등 | ⬜ (AUTH-07) |
+| `STORAGE_LOCAL_DIR`, `PUBLIC_BASE_URL` | 업로드 파일 저장 폴더 / 이미지 URL 앞부분 (S3 도입 전) | `uploads`, `http://localhost:8080` | ⬜ (AUTH-05) |
 | `LLM_MODEL_PATH` | 로컬 LLM 모델 경로/엔드포인트 | - | ✅ (REC-01) |
 | `VLM_MODEL_PATH` | VLM(Qwen3-VL) 모델 경로/엔드포인트 | - | ✅ (LOC-02, 촬영 지점) |
 | `GPU_SERVER_URL` | 자체 GPU 추론 서버 주소 | - | ✅ (REC, LOC) |
@@ -278,18 +281,26 @@ src/main/java/com/mockdata/zipfit/
 
 > 아래는 기능명세서 v0.9 기준 설계 초안이며, 구현 진행에 따라 변경된다. 확정 스펙은 Swagger(springdoc-openapi) 도입 후 `/swagger-ui.html` 참고 예정. 기능 ID는 [`기능명세서.md`](./기능명세서.md) 5장 상세 명세와 1:1 대응한다.
 
+> **에러 응답:** `{ "code", "message" }`. 입력 검증 실패(`INVALID_INPUT`)일 때만 `errors: [{ "field", "message" }]`로 잘못된 필드를 모두 알려준다 (COM-10).
+
 | Method | Endpoint | 설명 | 기능 ID |
 |---|---|---|---|
-| `POST` | `/api/auth/signup` | 자체 회원가입 | AUTH-01 |
-| `POST` | `/api/auth/kakao`, `/api/auth/google` | 소셜 로그인 (인가 코드 → 가입 회원은 토큰, 신규는 가입 토큰) | AUTH-02 |
+| `POST` | `/api/auth/signup` | 자체 회원가입 (가입 즉시 토큰 발급) | AUTH-01 |
+| `GET` | `/api/auth/email-availability?email=` | 이메일 중복 확인 | AUTH-01 |
+| `GET` | `/api/auth/nickname-availability?nickname=` | 닉네임 중복 확인 (로그인 불필요) | AUTH-01, AUTH-02 |
+| `GET` | `/api/auth/{kakao\|google}/authorize-url` | 소셜 인가 URL (앱 키는 서버에만) | AUTH-02 |
+| `POST` | `/api/auth/{kakao\|google}` | 소셜 로그인 → `LOGIN` / `SIGNUP_REQUIRED`, 같은 이메일 자체 계정이 있으면 409 + `linkToken` | AUTH-02 |
 | `POST` | `/api/auth/signup/social` | 소셜 최초 가입 (가입 토큰 + 개인정보 동의 + 닉네임) | AUTH-02 |
 | `POST` | `/api/auth/login` | 자체 로그인 | AUTH-03 |
 | `GET` | `/api/users/me` | 내 정보 조회 | AUTH-04 |
-| `PATCH` | `/api/users/me` | 내 정보 수정 | AUTH-05 |
+| `PATCH` | `/api/users/me` | 닉네임 수정 | AUTH-05 |
+| `PATCH` | `/api/users/me/password` | 비밀번호 변경 (자체 가입 회원) | AUTH-05 |
+| `PUT` / `DELETE` | `/api/users/me/profile-image` | 프로필 이미지 변경(multipart `image`, jpg·png·webp 5MB) / 기본 이미지로 | AUTH-05 |
 | `DELETE` | `/api/users/me` | 회원 탈퇴 | AUTH-06 |
-| `POST` | `/api/auth/password-reset` | 비밀번호 재설정 요청/확인 | AUTH-07 |
-| `POST` | `/api/auth/kakao/link` | 카카오 계정 연동 | AUTH-08 |
-| `POST` | `/api/auth/reissue`, `/api/auth/logout` | 토큰 재발급 / 로그아웃 | AUTH-09 |
+| `POST` | `/api/auth/password-reset/request`, `/api/auth/password-reset/confirm` | 비밀번호 재설정 메일 요청 / 새 비밀번호 설정 | AUTH-07 |
+| `POST` | `/api/auth/{kakao\|google}/link` | 소셜 로그인 중 같은 이메일 계정 연동 (linkToken + 비밀번호) | AUTH-08 |
+| `POST` | `/api/users/me/social/{kakao\|google}` | 내 정보 화면에서 소셜 계정 연동 (인가 코드 + 비밀번호) | AUTH-08 |
+| `POST` | `/api/auth/token/refresh`, `/api/auth/logout` | 토큰 재발급 / 로그아웃 | AUTH-09 |
 | `POST` | `/api/workspaces` | Workspace 생성 | WS-01 |
 | `GET` | `/api/workspaces`, `/api/workspaces/{id}` | Workspace 목록/상세 | WS-02 |
 | `PATCH` | `/api/workspaces/{id}` | Workspace 수정 | WS-03 |

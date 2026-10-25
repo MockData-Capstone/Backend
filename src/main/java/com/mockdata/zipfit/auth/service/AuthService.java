@@ -6,7 +6,7 @@ import com.mockdata.zipfit.auth.dto.TokenResponse;
 import com.mockdata.zipfit.auth.entity.OAuthProvider;
 import com.mockdata.zipfit.auth.entity.SocialAccount;
 import com.mockdata.zipfit.auth.entity.User;
-import com.mockdata.zipfit.auth.oauth.OAuthClient;
+import com.mockdata.zipfit.auth.oauth.OAuthClients;
 import com.mockdata.zipfit.auth.oauth.OAuthUserInfo;
 import com.mockdata.zipfit.auth.repository.SocialAccountRepository;
 import com.mockdata.zipfit.auth.repository.UserRepository;
@@ -14,7 +14,6 @@ import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
 import com.mockdata.zipfit.common.security.JwtProvider;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,30 +24,37 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
-	private final List<OAuthClient> oauthClients;
+	private final OAuthClients oauthClients;
 	private final UserRepository userRepository;
 	private final SocialAccountRepository socialAccountRepository;
 	private final TokenService tokenService;
 	private final JwtProvider jwtProvider;
 
 	public String authorizeUrl(OAuthProvider provider) {
-		return client(provider).authorizeUrl();
+		return oauthClients.get(provider).authorizeUrl();
 	}
 
 	/**
-	 * 인가 코드로 제공자 회원번호를 확인한다. 가입된 회원이면 토큰을 발급하고,
-	 * 처음 온 회원이면 개인정보 동의·닉네임 확인을 위해 가입 토큰을 돌려준다.
+	 * 인가 코드로 제공자 회원번호를 확인한다.
+	 * <ul>
+	 *   <li>가입된 회원이면 토큰을 발급한다.</li>
+	 *   <li>제공받은 이메일과 같은 자체 가입 회원이 있으면 새로 만들지 않고 409와 연동용 토큰으로 연동(AUTH-08)을 안내한다.</li>
+	 *   <li>처음 온 회원이면 개인정보 동의·닉네임 확인을 위해 가입 토큰을 돌려준다.</li>
+	 * </ul>
 	 * 외부 API 호출이 길어질 수 있어 트랜잭션은 토큰 발급에만 건다.
 	 */
 	public SocialLoginResponse socialLogin(OAuthProvider provider, String code) {
-		OAuthUserInfo info = client(provider).fetchUserInfo(code);
+		OAuthUserInfo info = oauthClients.get(provider).fetchUserInfo(code).withNormalizedEmail();
 
 		Optional<SocialAccount> account = socialAccountRepository.findByProviderAndProviderUserId(provider, info.providerUserId());
 		if (account.isPresent()) {
 			return SocialLoginResponse.login(tokenService.issue(account.get().getUser()));
 		}
 
-		// TODO(AUTH-08): 같은 이메일의 자체 가입 회원이 있으면 연동으로 안내한다.
+		if (hasLocalAccountWithSameEmail(info)) {
+			throw new AccountLinkRequiredException(jwtProvider.createLinkToken(info), info.email());
+		}
+
 		String nickname = suggestedNickname(info.nickname());
 		return SocialLoginResponse.signupRequired(new SocialLoginResponse.SignupRequired(
 			jwtProvider.createSignupToken(info),
@@ -69,6 +75,10 @@ public class AuthService {
 		if (socialAccountRepository.existsByProviderAndProviderUserId(info.provider(), info.providerUserId())) {
 			throw new BusinessException(ErrorCode.ALREADY_REGISTERED);
 		}
+		// 가입 토큰 발급 뒤에 같은 이메일로 자체 가입한 경우
+		if (hasLocalAccountWithSameEmail(info)) {
+			throw new BusinessException(ErrorCode.ACCOUNT_LINK_REQUIRED);
+		}
 		String nickname = request.nickname().trim();
 		if (!isNicknameAvailable(nickname)) {
 			throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
@@ -77,6 +87,10 @@ public class AuthService {
 		User user = userRepository.save(new User(nickname, info.email(), info.profileImageUrl(), Instant.now()));
 		socialAccountRepository.saveAndFlush(new SocialAccount(user, info.provider(), info.providerUserId()));
 		return tokenService.issue(user);
+	}
+
+	private boolean hasLocalAccountWithSameEmail(OAuthUserInfo info) {
+		return info.email() != null && userRepository.findByEmailAndPasswordIsNotNull(info.email()).isPresent();
 	}
 
 	private String suggestedNickname(String providerNickname) {
@@ -89,12 +103,5 @@ public class AuthService {
 
 	private boolean isNicknameAvailable(String nickname) {
 		return User.isValidNickname(nickname) && !userRepository.existsByNickname(nickname);
-	}
-
-	private OAuthClient client(OAuthProvider provider) {
-		return oauthClients.stream()
-			.filter(client -> client.provider() == provider)
-			.findFirst()
-			.orElseThrow(() -> new BusinessException(ErrorCode.UNSUPPORTED_PROVIDER));
 	}
 }

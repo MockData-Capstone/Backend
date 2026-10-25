@@ -6,6 +6,7 @@ package com.mockdata.zipfit.auth.dto;
  *   <li>LOGIN: 가입된 회원이라 tokens를 바로 발급했다.</li>
  *   <li>SIGNUP_REQUIRED: 처음 온 회원이다. signup의 signupToken과 함께 동의·닉네임을 받아 /api/auth/signup/social 로 가입을 마친다.</li>
  * </ul>
+ * 같은 이메일의 자체 가입 회원이 있으면 이 응답 대신 409 {@link AccountLinkRequiredResponse}를 준다.
  */
 public record SocialLoginResponse(Status status, TokenResponse tokens, SignupRequired signup) {
 
