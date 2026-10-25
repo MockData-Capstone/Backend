@@ -4,7 +4,6 @@
 
 2026 계명대학교 컴퓨터공학전공 **캡스톤 디자인(1)** 프로젝트 · 팀 **목데이터**
 
-![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
@@ -109,17 +108,17 @@ flowchart TD
 
 | 계층 | 기술 |
 |---|---|
-| **Language / Build** | Kotlin 2.3.21, Gradle (Groovy DSL), **Java 21 toolchain** |
+| **Language / Build** | Java 21, Gradle (Groovy DSL), Lombok |
 | **Framework** | Spring Boot 4.1.1 |
 | **Web / 실시간** | Spring Web MVC, Spring WebSocket |
+| **인증** | Spring Security, JWT (jjwt 0.12), 카카오·구글 OAuth 2.0 |
 | **DB** | Spring Data JPA + PostgreSQL |
 
 ### 예정 (미적용 — PRD/기능명세서 기준)
 
 | 계층 | 기술 | 용도 |
 |---|---|---|
-| **인증** | Spring Security + JWT, BCrypt | 접근/재발급 토큰(AUTH-09, 구조 미결), 워크스페이스 접근 제어 |
-| **소셜 로그인** | 카카오 로그인 (OAuth) | 회원번호 식별, 이메일 선택 동의 (AUTH-02, P0) |
+| **인증** | BCrypt | 자체 가입·로그인 비밀번호 (AUTH-01·03, P1) |
 | **마이그레이션** | Flyway | DDL 버전 관리 |
 | **공간 데이터** | PostGIS 또는 `latitude`/`longitude` 컬럼 | 후보지·추천 위치 좌표 저장 |
 | **로컬 LLM** | 한국어 오픈소스 LLM (7~8B급) + LoRA/QLoRA 파인튜닝 | 대화 → 8종 조건 추출(JSON 스키마 강제), 추천 이유 생성. **외부 API로 전송 금지**(NFR-016) |
@@ -173,8 +172,8 @@ docker run -d --name zipfit-db \
   -p 5432:5432 postgres:16
 
 # 3. 환경 변수 설정 (아래 '환경 변수' 섹션 참고)
-cp src/main/resources/application-local.yml.example \
-   src/main/resources/application-local.yml
+cp src/main/resources/application-local.properties.example \
+   src/main/resources/application-local.properties
 
 # 4. 실행
 ./gradlew bootRun
@@ -196,7 +195,7 @@ java -jar build/libs/*.jar
 ## 환경 변수
 
 > 🔐 **API 키는 절대 저장소에 커밋하지 않는다.**
-> `application-local.yml`, `.env` 는 반드시 `.gitignore`에 포함할 것.
+> `application-local.properties`, `.env` 는 반드시 `.gitignore`에 포함할 것.
 > 운영 환경에서는 환경 변수 또는 AWS Parameter Store / Secrets Manager 사용.
 
 | 변수 | 설명 | 예시 | 필수 |
@@ -205,11 +204,15 @@ java -jar build/libs/*.jar
 | `DB_USERNAME` | DB 사용자 | `zipfit` | ✅ |
 | `DB_PASSWORD` | DB 비밀번호 | - | ✅ |
 | `JWT_SECRET` | JWT 서명 키 (256bit 이상) | - | ✅ (인증 구현 후) |
-| `JWT_ACCESS_EXPIRE` | Access Token 만료(ms) | `1800000` (30분, 안) | ⬜ (미결) |
-| `JWT_REFRESH_EXPIRE` | Refresh Token 만료(ms) | `1209600000` (14일, 안) | ⬜ (미결) |
+| `JWT_ACCESS_EXPIRE` | Access Token 만료 (Duration) | `30m` (기본값) | ⬜ |
+| `JWT_REFRESH_EXPIRE` | Refresh Token 만료 (Duration) | `14d` (기본값) | ⬜ |
 | `KAKAO_REST_API_KEY` | 카카오 REST API 키 (로컬/로드뷰/도보경로, 로그인) | - | ✅ (FR-000, REC, LOC) |
 | `KAKAO_CLIENT_SECRET` | 카카오 로그인 Client Secret | - | ✅ (AUTH-02) |
-| `KAKAO_REDIRECT_URI` | 카카오 로그인 콜백 URI | `https://api.zipfit.app/auth/kakao/callback` | ✅ (AUTH-02) |
+| `KAKAO_REDIRECT_URI` | 카카오 로그인 콜백 URI (프론트 콜백 페이지) | `http://localhost:5173/oauth/kakao/callback` | ✅ (AUTH-02) |
+| `KAKAO_ADMIN_KEY` | 탈퇴 시 카카오 연결 끊기용 어드민 키 | - | ⬜ (AUTH-06, 없으면 연결 끊기 생략) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 구글 OAuth 2.0 클라이언트 | - | ✅ (AUTH-02) |
+| `GOOGLE_REDIRECT_URI` | 구글 로그인 콜백 URI (프론트 콜백 페이지) | `http://localhost:5173/oauth/google/callback` | ✅ (AUTH-02) |
+| `CORS_ALLOWED_ORIGINS` | 프론트 origin (쉼표 구분) | `http://localhost:5173` | ⬜ |
 | `LLM_MODEL_PATH` | 로컬 LLM 모델 경로/엔드포인트 | - | ✅ (REC-01) |
 | `VLM_MODEL_PATH` | VLM(Qwen3-VL) 모델 경로/엔드포인트 | - | ✅ (LOC-02, 촬영 지점) |
 | `GPU_SERVER_URL` | 자체 GPU 추론 서버 주소 | - | ✅ (REC, LOC) |
@@ -229,8 +232,8 @@ java -jar build/libs/*.jar
 도메인별 패키지 구조를 사용한다. 루트 패키지는 `com.mockdata.zipfit`이며, 패키지명은 [`기능명세서.md`](./기능명세서.md) 3장의 기능 ID 접두사와 1:1로 맞춘다.
 
 ```
-src/main/kotlin/com/mockdata/zipfit/
-├── ZipfitApplication.kt      # 엔트리포인트
+src/main/java/com/mockdata/zipfit/
+├── ZipfitApplication.java    # 엔트리포인트
 │
 ├── auth/                      # AUTH-01~09: 회원가입, 카카오/자체 로그인, 토큰 재발급
 ├── workspace/                 # WS-01~04:  Workspace 생성/조회/수정/삭제
@@ -278,7 +281,8 @@ src/main/kotlin/com/mockdata/zipfit/
 | Method | Endpoint | 설명 | 기능 ID |
 |---|---|---|---|
 | `POST` | `/api/auth/signup` | 자체 회원가입 | AUTH-01 |
-| `POST` | `/api/auth/kakao` | 카카오 로그인·가입 | AUTH-02 |
+| `POST` | `/api/auth/kakao`, `/api/auth/google` | 소셜 로그인 (인가 코드 → 가입 회원은 토큰, 신규는 가입 토큰) | AUTH-02 |
+| `POST` | `/api/auth/signup/social` | 소셜 최초 가입 (가입 토큰 + 개인정보 동의 + 닉네임) | AUTH-02 |
 | `POST` | `/api/auth/login` | 자체 로그인 | AUTH-03 |
 | `GET` | `/api/users/me` | 내 정보 조회 | AUTH-04 |
 | `PATCH` | `/api/users/me` | 내 정보 수정 | AUTH-05 |
