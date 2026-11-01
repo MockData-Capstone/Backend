@@ -94,6 +94,17 @@ public enum ErrorCode {
 	ROUND_CLOSED(HttpStatus.CONFLICT, "이미 끝났거나 아직 열리지 않은 라운드입니다."),
 	ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이번 라운드에 이미 냈습니다."),
 
+	// TOUR 실시간 투어
+	NOT_SELECTED_VISITOR(HttpStatus.FORBIDDEN, "가장 최근 미니게임으로 선정된 방문자만 투어를 시작할 수 있습니다."),
+	TOUR_ALREADY_HELD(HttpStatus.CONFLICT, "이 미니게임 결과로는 이미 투어를 했습니다. 미니게임으로 방문자를 다시 정해주세요."),
+	TOUR_IN_PROGRESS(HttpStatus.CONFLICT, "진행 중인 투어가 있습니다."),
+	TOUR_NOT_FOUND(HttpStatus.NOT_FOUND, "투어를 찾을 수 없습니다."),
+	TOUR_NOT_IN_PROGRESS(HttpStatus.CONFLICT, "이미 종료된 투어입니다."),
+	TOUR_FULL(HttpStatus.CONFLICT, "투어 인원이 가득 찼습니다."),
+	NOT_TOUR_PARTICIPANT(HttpStatus.FORBIDDEN, "투어 참여자가 아닙니다."),
+	ONLY_VISITOR_ALLOWED(HttpStatus.FORBIDDEN, "방문자만 할 수 있습니다."),
+	VISITOR_CANNOT_LEAVE(HttpStatus.CONFLICT, "방문자는 나가기 대신 투어 종료를 이용해주세요."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
