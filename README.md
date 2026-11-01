@@ -382,6 +382,14 @@ src/main/java/com/mockdata/zipfit/
 | `POST` | `/api/tours/{tourId}/rejoin` | 방문자 재참여 (3분 안에 돌아오지 않으면 자동 종료) | TOUR-05 |
 | `GET` | `/api/tours/{tourId}/ice-servers` | STUN·TURN 서버와 시간 제한 자격증명 (`expiresAt` 전에 다시 받기) | TOUR-02 |
 | `WS` | `/ws/signaling?tourId=&token=` | WebRTC 시그널링 | SIG-01~05 |
+| `GET` | `/api/notifications?cursor=&size=&unreadOnly=` | 알림함 (최신순, 2주 보관) → `{ items, nextCursor, hasNext, unreadCount }` | NOTI-02 |
+| `GET` | `/api/notifications/unread-count` | 읽지 않은 개수 | NOTI-02 |
+| `PATCH` | `/api/notifications/{notificationId}/read` | 한 건 읽음 → `{ notificationId, unreadCount }` | NOTI-03 |
+| `PATCH` | `/api/notifications/read-all` | 전체 읽음 → `{ updatedCount, unreadCount }` | NOTI-03 |
+| `GET` | `/api/push-subscriptions/vapid-public-key` | VAPID 공개키 (`enabled: false`면 웹 푸시 미사용) | NOTI-04 |
+| `POST` | `/api/push-subscriptions` | 웹 푸시 구독 (`PushSubscription.toJSON()` 그대로) | NOTI-04 (P2) |
+| `DELETE` | `/api/push-subscriptions?endpoint=` | 웹 푸시 구독 해제 | NOTI-05 (P2) |
+| `WS` | `/ws/notifications?token=` | 알림 소켓 | NOTI-01 |
 
 **Workspace 소켓 메시지** (`/ws/workspaces`)
 
@@ -412,6 +420,16 @@ src/main/java/com/mockdata/zipfit/
 
 > 미니게임 참가자는 Workspace 소켓에 접속 중인 멤버만 고를 수 있다. 게임 화면에서도 Workspace 소켓을 연결해 두어야 한다.
 
+**알림 소켓 메시지** (`/ws/notifications`) — 로그인한 동안 열어 둔다. 서버가 보내기만 한다.
+
+| type | data |
+|---|---|
+| `NOTIFICATION_CREATED` | `{ notification, unreadCount }` (알림 항목은 알림함과 같음) |
+| `NOTIFICATION_READ` | `{ notificationIds, unreadCount }` (다른 탭·기기에서 읽음 처리했을 때 배지를 맞춘다) |
+
+- 알림 유형(`type`)과 이동할 화면: `MEMBER_JOINED` 멤버 목록, `NEW_MESSAGE` 채팅, `ANALYSIS_COMPLETED` 추천 위치, `VOTE_NEEDED` 후보지(`targetId`), `TOUR_STARTED` 투어(`targetId`).
+- 새 메시지 알림은 Workspace별로 읽지 않은 1건에 묶이고 `count`가 늘어난다. Workspace 소켓에 접속해 그 화면을 보고 있으면 오지 않는다.
+
 **시그널링 소켓 메시지** (`/ws/signaling`) — 투어 시작·참여 응답의 `signalingPath`에 `&token=`을 붙여 접속한다.
 
 | 방향 | type | data |
@@ -440,7 +458,8 @@ src/main/java/com/mockdata/zipfit/
 
 ### 구현 예정
 
-notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 구현한다. 조건 제안(REC-03), 확정 조건(COND), 매물 검색 링크(LINK)는 API명세서에 아직 행이 없다.
+- 조건 제안(REC-03), 확정 조건(COND), 매물 검색 링크(LINK): API명세서에 아직 행이 없다.
+- 웹 푸시 실제 발송(P2): 구독 저장까지만 하고 발송은 로그만 남긴다(`LoggingWebPushSender`). VAPID 키 발급 후 구현한다.
 
 ### API명세서와 다른 점
 
@@ -459,6 +478,7 @@ notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 �
 | 후보지 상세·이름 수정 | 행 없음 | `GET`·`PATCH /api/candidates/{id}` (CAND-02·04) |
 | 미니게임 진행 통지 | 시그널링 카테고리 | 게임 중에는 투어 방이 없어 Workspace 소켓으로 보낸다. 중단(`GAME_ABORTED`)·참가자 이탈(`GAME_PLAYER_LEFT`) 통지 추가 (SIG-06, GAME-02·04) |
 | 시그널링 연결 상태 | `CONNECTION_STATE`만 | 다른 참여자에게 `PEER_STATE`로 알린다 ("방문자 연결 끊김" 표시, SIG-04) |
+| 보고 있는 Workspace 보고 `VIEWING_WORKSPACE` | 생략 가능 | Workspace 소켓 접속으로 판단하므로 받지 않는다 (API명세서 설명대로 생략) |
 
 ---
 
