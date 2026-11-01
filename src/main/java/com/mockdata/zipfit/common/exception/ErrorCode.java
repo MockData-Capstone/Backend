@@ -74,6 +74,10 @@ public enum ErrorCode {
 	CANDIDATE_NOT_FOUND(HttpStatus.NOT_FOUND, "이미 제외되었거나 없는 후보지입니다."),
 	NOT_CANDIDATE_OWNER(HttpStatus.FORBIDDEN, "후보지를 추가한 멤버나 호스트만 제외할 수 있습니다."),
 
+	// VOTE 투표
+	ALREADY_VOTED(HttpStatus.CONFLICT, "이미 투표한 후보지입니다. 투표 변경을 이용해주세요."),
+	VOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 투표하지 않은 후보지입니다."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
