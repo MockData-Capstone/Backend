@@ -40,28 +40,50 @@ public class UserService {
 		return UserResponse.of(findUser(userId), providersOf(userId));
 	}
 
-	/** 닉네임 변경은 회원을 참조하는 모든 Workspace의 멤버 목록·채팅에 그대로 반영된다. */
+	/** 닉네임 중복 확인. 형식(길이)에 맞지 않는 닉네임도 쓸 수 없는 것으로 본다. */
+	@Transactional(readOnly = true)
+	public boolean isNicknameAvailable(String nickname) {
+		String trimmed = nickname.trim();
+		return User.isValidNickname(trimmed) && !userRepository.existsByNickname(trimmed);
+	}
+
+	/**
+	 * 전달된 필드만 바꾼다. 닉네임 변경은 회원을 참조하는 모든 Workspace의 멤버 목록·채팅에 그대로 반영된다.
+	 * 비밀번호는 지금 비밀번호를 확인한 뒤 바꾸며, 카카오 전용 회원은 바꿀 수 없다.
+	 */
 	@Transactional
 	public UserResponse updateMe(Long userId, UpdateUserRequest request) {
 		User user = findUser(userId);
-		String nickname = request.nickname().trim();
-		if (!nickname.equals(user.getNickname())) {
-			if (!User.isValidNickname(nickname)) {
-				throw new BusinessException(ErrorCode.INVALID_INPUT);
-			}
-			if (userRepository.existsByNickname(nickname)) {
-				throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
-			}
-			user.changeNickname(nickname);
+		if (request.nickname() != null) {
+			changeNickname(user, request.nickname().trim());
+		}
+		if (request.newPassword() != null) {
+			passwordService.changePassword(userId, request.currentPassword(), request.newPassword());
 		}
 		return UserResponse.of(user, providersOf(userId));
 	}
 
-	/** 프로필 이미지 변경. 허용 형식(jpg·png·webp)과 용량(5MB)을 넘으면 저장하지 않는다. */
+	private void changeNickname(User user, String nickname) {
+		if (nickname.equals(user.getNickname())) {
+			return;
+		}
+		if (!User.isValidNickname(nickname)) {
+			throw new BusinessException(ErrorCode.INVALID_INPUT);
+		}
+		if (userRepository.existsByNickname(nickname)) {
+			throw new BusinessException(ErrorCode.DUPLICATE_NICKNAME);
+		}
+		user.changeNickname(nickname);
+	}
+
+	/**
+	 * 프로필 이미지 변경. 빈 값을 보내면 기본 이미지로 되돌린다.
+	 * 허용 형식(jpg·png·webp)과 용량(5MB)을 넘으면 저장하지 않는다.
+	 */
 	@Transactional
 	public UserResponse updateProfileImage(Long userId, MultipartFile image) {
 		if (image == null || image.isEmpty()) {
-			throw new BusinessException(ErrorCode.INVALID_IMAGE);
+			return resetProfileImage(userId);
 		}
 		if (image.getSize() > PROFILE_IMAGE_MAX_BYTES) {
 			throw new BusinessException(ErrorCode.IMAGE_TOO_LARGE);
@@ -77,9 +99,7 @@ public class UserService {
 		return UserResponse.of(user, providersOf(userId));
 	}
 
-	/** 프로필 이미지를 비워 기본 이미지로 되돌린다. */
-	@Transactional
-	public UserResponse resetProfileImage(Long userId) {
+	private UserResponse resetProfileImage(Long userId) {
 		User user = findUser(userId);
 		fileStorage.delete(user.getProfileImageUrl());
 		user.resetProfileImage();

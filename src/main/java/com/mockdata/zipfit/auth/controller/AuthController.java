@@ -58,12 +58,6 @@ public class AuthController {
 		return new AvailabilityResponse(localAuthService.isEmailAvailable(email));
 	}
 
-	/** AUTH-01·02 닉네임 중복 확인. 가입 화면에서 닉네임을 정하기 전에 쓴다. */
-	@GetMapping("/nickname-availability")
-	public AvailabilityResponse nicknameAvailability(@RequestParam @NotBlank String nickname) {
-		return new AvailabilityResponse(localAuthService.isNicknameAvailable(nickname));
-	}
-
 	/** AUTH-03 자체 로그인 */
 	@PostMapping("/login")
 	public TokenResponse login(@Valid @RequestBody LoginRequest request) {

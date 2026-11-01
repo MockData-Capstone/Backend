@@ -49,15 +49,23 @@ class ProfileImageIntegrationTest extends AuthTestSupport {
 	}
 
 	@Test
-	@DisplayName("이미지를 비우면 파일을 지우고 기본 이미지(null)로 되돌린다")
+	@DisplayName("빈 값을 보내면 파일을 지우고 기본 이미지(null)로 되돌린다")
 	void reset() throws Exception {
 		Tokens tokens = signupLocal("reset-img@zipfit.com", "password1", "이미지삭제");
 		String url = urlOf(upload(tokens.accessToken(), "a.png", PNG));
 
-		mockMvc.perform(bearer(delete("/api/users/me/profile-image"), tokens.accessToken()))
+		// image 파트 없이 보내기
+		mockMvc.perform(bearer(multipart(HttpMethod.PATCH, "/api/users/me/profile-image"), tokens.accessToken()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.profileImageUrl").doesNotExist());
 		assertThat(fileOf(url)).doesNotExist();
+
+		// 빈 파일로 보내기
+		String second = urlOf(upload(tokens.accessToken(), "b.png", PNG));
+		upload(tokens.accessToken(), "", new byte[0])
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.profileImageUrl").doesNotExist());
+		assertThat(fileOf(second)).doesNotExist();
 	}
 
 	@Test
@@ -72,9 +80,6 @@ class ProfileImageIntegrationTest extends AuthTestSupport {
 		upload(tokens.accessToken(), "big.png", withHeader(PNG, (int) UserService.PROFILE_IMAGE_MAX_BYTES + 1))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value(ErrorCode.IMAGE_TOO_LARGE.name()));
-		mockMvc.perform(bearer(multipart(HttpMethod.PUT, "/api/users/me/profile-image"), tokens.accessToken()))
-			.andExpect(status().isBadRequest());
-
 		mockMvc.perform(bearer(get("/api/users/me"), tokens.accessToken()))
 			.andExpect(jsonPath("$.profileImageUrl").doesNotExist());
 	}
@@ -89,7 +94,7 @@ class ProfileImageIntegrationTest extends AuthTestSupport {
 
 	private ResultActions upload(String accessToken, String filename, byte[] bytes) throws Exception {
 		MockMultipartFile file = new MockMultipartFile("image", filename, "image/png", bytes);
-		return mockMvc.perform(bearer(multipart(HttpMethod.PUT, "/api/users/me/profile-image").file(file), accessToken));
+		return mockMvc.perform(bearer(multipart(HttpMethod.PATCH, "/api/users/me/profile-image").file(file), accessToken));
 	}
 
 	private static String urlOf(ResultActions result) throws Exception {

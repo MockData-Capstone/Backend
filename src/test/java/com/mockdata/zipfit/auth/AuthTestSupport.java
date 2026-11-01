@@ -14,22 +14,24 @@ import com.mockdata.zipfit.auth.repository.RefreshTokenRepository;
 import com.mockdata.zipfit.auth.repository.SocialAccountRepository;
 import com.mockdata.zipfit.auth.repository.UserRepository;
 import com.mockdata.zipfit.common.mail.MailService;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 
-/** 인증 통합 테스트 공통 설정. 외부 연동(카카오·구글·메일)은 mock으로 대신한다. */
+/** 통합 테스트 공통 설정. 외부 연동(카카오·구글·메일)은 mock으로 대신한다. */
 @SpringBootTest
 @AutoConfigureMockMvc
-abstract class AuthTestSupport {
+public abstract class AuthTestSupport {
 
 	@Autowired
 	protected MockMvc mockMvc;
@@ -41,6 +43,8 @@ abstract class AuthTestSupport {
 	protected RefreshTokenRepository refreshTokenRepository;
 	@Autowired
 	protected PasswordResetTokenRepository passwordResetTokenRepository;
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	@MockitoBean
 	protected KakaoOAuthClient kakaoClient;
@@ -58,12 +62,16 @@ abstract class AuthTestSupport {
 		given(googleClient.provider()).willReturn(OAuthProvider.GOOGLE);
 	}
 
+	/** 도메인이 늘어도 고치지 않도록 모든 테이블을 비운다. */
 	@AfterEach
 	void cleanUp() {
-		passwordResetTokenRepository.deleteAll();
-		refreshTokenRepository.deleteAll();
-		socialAccountRepository.deleteAll();
-		userRepository.deleteAll();
+		List<String> tables = jdbcTemplate.queryForList(
+			"select table_name from information_schema.tables where lower(table_schema) = 'public' and table_type = 'BASE TABLE'",
+			String.class
+		);
+		jdbcTemplate.execute("set referential_integrity false");
+		tables.forEach(table -> jdbcTemplate.execute("truncate table \"" + table + "\" restart identity"));
+		jdbcTemplate.execute("set referential_integrity true");
 	}
 
 	protected Tokens signupLocal(String email, String password, String nickname) throws Exception {

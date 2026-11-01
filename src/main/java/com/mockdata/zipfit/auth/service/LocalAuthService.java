@@ -68,10 +68,4 @@ public class LocalAuthService {
 	public boolean isEmailAvailable(String email) {
 		return !userRepository.existsByEmail(User.normalizeEmail(email));
 	}
-
-	/** 형식(길이)에 맞지 않는 닉네임도 쓸 수 없는 것으로 본다. */
-	public boolean isNicknameAvailable(String nickname) {
-		String trimmed = nickname.trim();
-		return User.isValidNickname(trimmed) && !userRepository.existsByNickname(trimmed);
-	}
 }

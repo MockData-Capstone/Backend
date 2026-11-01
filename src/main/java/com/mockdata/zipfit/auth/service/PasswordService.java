@@ -54,7 +54,7 @@ public class PasswordService {
 		if (!user.hasPassword()) {
 			throw new BusinessException(ErrorCode.PASSWORD_NOT_SET);
 		}
-		if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+		if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
 			throw new BusinessException(ErrorCode.INVALID_PASSWORD);
 		}
 		user.changePassword(passwordEncoder.encode(newPassword));

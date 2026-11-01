@@ -50,6 +50,8 @@ public class SecurityConfig {
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers("/api/auth/**", "/error").permitAll()
 				.requestMatchers(HttpMethod.GET, LocalFileStorage.URL_PATH + "**").permitAll()
+				// 가입 화면(로그인 전)에서도 쓰는 조회
+				.requestMatchers(HttpMethod.GET, "/api/users/nickname-availability").permitAll()
 				.anyRequest().authenticated())
 			.exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
 			.addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);

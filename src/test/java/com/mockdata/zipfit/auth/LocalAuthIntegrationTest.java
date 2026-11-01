@@ -121,14 +121,14 @@ class LocalAuthIntegrationTest {
 	void nicknameAvailability() throws Exception {
 		signup("nick@zipfit.com", "password1", "사용중닉", true).andExpect(status().isCreated());
 
-		mockMvc.perform(get("/api/auth/nickname-availability").param("nickname", " 사용중닉 "))
+		mockMvc.perform(get("/api/users/nickname-availability").param("nickname", " 사용중닉 "))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.available").value(false));
-		mockMvc.perform(get("/api/auth/nickname-availability").param("nickname", "새닉네임"))
+		mockMvc.perform(get("/api/users/nickname-availability").param("nickname", "새닉네임"))
 			.andExpect(jsonPath("$.available").value(true));
-		mockMvc.perform(get("/api/auth/nickname-availability").param("nickname", "a".repeat(21)))
+		mockMvc.perform(get("/api/users/nickname-availability").param("nickname", "a".repeat(21)))
 			.andExpect(jsonPath("$.available").value(false));
-		mockMvc.perform(get("/api/auth/nickname-availability").param("nickname", " "))
+		mockMvc.perform(get("/api/users/nickname-availability").param("nickname", " "))
 			.andExpect(status().isBadRequest());
 	}
 
