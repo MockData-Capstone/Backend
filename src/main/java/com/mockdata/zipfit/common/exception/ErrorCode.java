@@ -57,7 +57,15 @@ public enum ErrorCode {
 	CANNOT_DELEGATE_TO_SELF(HttpStatus.BAD_REQUEST, "본인에게는 호스트를 위임할 수 없습니다."),
 	CANNOT_KICK_HOST(HttpStatus.BAD_REQUEST, "호스트 본인은 내보낼 수 없습니다."),
 	HOST_CANNOT_LEAVE(HttpStatus.CONFLICT, "호스트는 다른 멤버에게 호스트를 위임한 뒤 나갈 수 있습니다."),
-	LAST_MEMBER_CANNOT_LEAVE(HttpStatus.CONFLICT, "혼자 남은 Workspace는 나갈 수 없습니다. Workspace를 삭제해주세요.");
+	LAST_MEMBER_CANNOT_LEAVE(HttpStatus.CONFLICT, "혼자 남은 Workspace는 나갈 수 없습니다. Workspace를 삭제해주세요."),
+
+	// CHAT 채팅
+	EMPTY_MESSAGE(HttpStatus.BAD_REQUEST, "빈 메시지는 보낼 수 없습니다."),
+	MESSAGE_TOO_LONG(HttpStatus.BAD_REQUEST, "메시지는 1,000자까지 보낼 수 있습니다."),
+
+	// WebSocket 공통
+	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
+	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
 
 	private final HttpStatus status;
 	private final String message;
