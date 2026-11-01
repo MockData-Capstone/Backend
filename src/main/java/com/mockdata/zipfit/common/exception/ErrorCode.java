@@ -41,7 +41,23 @@ public enum ErrorCode {
 
 	// AUTH-05 프로필 이미지
 	INVALID_IMAGE(HttpStatus.BAD_REQUEST, "jpg, png, webp 이미지만 올릴 수 있습니다."),
-	IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "이미지는 5MB 이하만 올릴 수 있습니다.");
+	IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "이미지는 5MB 이하만 올릴 수 있습니다."),
+
+	// AUTH-06 회원 탈퇴
+	HOST_DELEGATION_REQUIRED(HttpStatus.CONFLICT, "다른 멤버가 있는 Workspace의 호스트는 호스트를 위임한 뒤 탈퇴할 수 있습니다."),
+
+	// WS Workspace
+	WORKSPACE_NOT_FOUND(HttpStatus.NOT_FOUND, "Workspace를 찾을 수 없습니다."),
+	NOT_WORKSPACE_MEMBER(HttpStatus.FORBIDDEN, "Workspace 멤버만 이용할 수 있습니다."),
+	NOT_WORKSPACE_HOST(HttpStatus.FORBIDDEN, "호스트만 할 수 있습니다."),
+
+	// MEM 멤버·초대
+	INVITATION_EXPIRED(HttpStatus.GONE, "만료된 초대 링크입니다."),
+	MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "Workspace 멤버가 아닙니다."),
+	CANNOT_DELEGATE_TO_SELF(HttpStatus.BAD_REQUEST, "본인에게는 호스트를 위임할 수 없습니다."),
+	CANNOT_KICK_HOST(HttpStatus.BAD_REQUEST, "호스트 본인은 내보낼 수 없습니다."),
+	HOST_CANNOT_LEAVE(HttpStatus.CONFLICT, "호스트는 다른 멤버에게 호스트를 위임한 뒤 나갈 수 있습니다."),
+	LAST_MEMBER_CANNOT_LEAVE(HttpStatus.CONFLICT, "혼자 남은 Workspace는 나갈 수 없습니다. Workspace를 삭제해주세요.");
 
 	private final HttpStatus status;
 	private final String message;
