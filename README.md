@@ -354,6 +354,17 @@ src/main/java/com/mockdata/zipfit/
 | `DELETE` | `/api/workspaces/{workspaceId}/members/me` | Workspace 나가기 | MEM-06 |
 | `GET` | `/api/workspaces/{workspaceId}/messages?before=&after=&size=` | 대화 기록 (시간순, 기본 50·최대 100개) | CHAT-02 |
 | `WS` | `/ws/workspaces?workspaceId=&token=` | Workspace 소켓: 채팅과 실시간 동기화 | CHAT-01 |
+| `POST` | `/api/workspaces/{workspaceId}/recommendations` | AI 분석 요청 → 202 (대화 없음·분석 중이면 409) | REC-01 |
+| `GET` | `/api/workspaces/{workspaceId}/recommendations` | 최근 분석 상태 + 최근 완료된 분석의 추천 위치 (`addedAsCandidate` 포함) | REC-02 |
+| `POST` | `/api/workspaces/{workspaceId}/candidates` | 추천 위치를 후보지로 추가 `{ recommendationId }`, 입지 정보 산출 | CAND-01, LOC-01·02 |
+| `GET` | `/api/workspaces/{workspaceId}/candidates` | 후보지 목록 (입지 정보·투표 집계 요약) | CAND-02 |
+| `GET` | `/api/candidates/{candidateId}` | 후보지 상세 (입지 정보) | CAND-02, LOC-03 |
+| `PATCH` | `/api/candidates/{candidateId}` | 후보지 이름 수정 `{ name }` | CAND-04 |
+| `DELETE` | `/api/candidates/{candidateId}` | 후보지 제외 (추가한 멤버·호스트, 연관 투표 삭제) | CAND-03 |
+| `POST` | `/api/candidates/{candidateId}/votes` | 투표 `{ choice: AGREE \| DISAGREE }` | VOTE-01 |
+| `PATCH` | `/api/candidates/{candidateId}/votes/me` | 내 투표 변경 | VOTE-03 |
+| `GET` | `/api/workspaces/{workspaceId}/votes` | 후보지별 찬성·반대, 의견 갈림(`split`), 멤버별 선택 | VOTE-02 |
+| `GET`, `POST` | `/api/workspaces/{workspaceId}/comparisons?candidateIds=` | 비교표 (요청 시 생성, 저장 안 함, 2개 미만이면 409) | CMP-01 |
 
 **Workspace 소켓 메시지** (`/ws/workspaces`)
 
@@ -366,10 +377,30 @@ src/main/java/com/mockdata/zipfit/
 | 서버 → 전원 | `HOST_CHANGED` | `{ previousHostUserId, newHostUserId }` |
 | 서버 → 전원 | `WORKSPACE_UPDATED` | `{ workspaceId, name, description }` |
 | 서버 → 전원 | `WORKSPACE_DELETED` | `{ workspaceId }` (받은 뒤 4404로 닫힘) |
+| 서버 → 전원 | `RECOMMENDATION_STARTED` | `{ analysisId }` |
+| 서버 → 전원 | `RECOMMENDATION_COMPLETED` | `{ analysisId, recommendationCount }` → 추천 위치 조회로 결과를 받는다 |
+| 서버 → 전원 | `RECOMMENDATION_FAILED` | `{ analysisId, reason, message }` (`NO_CONDITIONS` 대화 보충, `AI_ERROR`·`TIMEOUT` 재요청) |
+| 서버 → 전원 | `CANDIDATE_ADDED` | 후보지 목록 항목과 같음 |
+| 서버 → 전원 | `CANDIDATE_UPDATED` | `{ candidateId, name }` |
+| 서버 → 전원 | `CANDIDATE_REMOVED` | `{ candidateId }` |
+| 서버 → 전원 | `VOTE_UPDATED` | 투표 결과 항목과 같음 (`myChoice`는 null, `votes`에서 내 표를 찾는다) |
+
+### AI 서버 연동 (`/api/ai/*`)
+
+백엔드가 자체 GPU 서버의 AI 서버를 호출한다. `AI_BASE_URL`이 없으면 가짜 응답(`FakeAiClient`)으로 동작하므로, AI 서버 없이도 프론트 개발과 테스트를 할 수 있다(추천·입지 결과는 실제 값이 아니다). 요청·응답 형식은 `ai/dto` 패키지가 기준이다.
+
+| Endpoint | 요청 | 응답 |
+|---|---|---|
+| `POST /api/ai/recommendations` | `{ workspaceId, messages: [{ speaker: "멤버1", content, sentAt }] }` | `{ conditions: { region, depositMin/Max, monthlyRentMin/Max, roomType, areaMin/Max, facilities, destinations, avoidSlope, needVehicleAccess }, places: [{ placeName, latitude, longitude, reason, kakaoPlaceId }] }` |
+| `POST /api/ai/slope` | `{ latitude, longitude, destinations }` | `{ averagePercent, maxPercent, grade: GENTLE\|MODERATE\|STEEP, destination, source, confidence: HIGH\|LOW }` |
+| `POST /api/ai/vehicle-access` | `{ latitude, longitude }` | `{ access: POSSIBLE\|LIMITED\|IMPOSSIBLE\|UNKNOWN, reason, source, confidence }` |
+
+- 금액은 만원, 면적은 ㎡ 단위다. 대화에 없던 조건은 null이다.
+- 대화는 회원 ID 대신 "멤버1"처럼 익명으로 보내고, 탈퇴한 회원의 메시지는 보내지 않는다 (NFR-016).
 
 ### 구현 예정
 
-recommendation, candidate, comparison, vote, minigame, tour, signaling, notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 구현한다. 확정 조건(COND)·매물 검색 링크(LINK)·입지 정보(LOC)는 API명세서에 아직 행이 없다.
+minigame, tour, signaling, notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 구현한다. 조건 제안(REC-03), 확정 조건(COND), 매물 검색 링크(LINK)는 API명세서에 아직 행이 없다.
 
 ### API명세서와 다른 점
 
@@ -382,6 +413,10 @@ recommendation, candidate, comparison, vote, minigame, tour, signaling, notifica
 | 회원 탈퇴 `DELETE /api/users/me` | 채팅은 '탈퇴한 사용자'로 유지 | 내용을 지우고 `deleted: true`로 남긴다 (AUTH-06, NFR-016) |
 | 내 정보 화면 카카오 연동 | 행 없음 | `POST /api/users/me/social/kakao` (AUTH-08) |
 | 구글 로그인 | 행 없음 | `/api/auth/google/...` 구현됨 (팀 결정 필요) |
+| 경사도·차량 진입 `/api/ai/slope`, `/vehicle-access` | 로드뷰 이미지 AI 분석으로 보완 | 공공데이터 + 팀 촬영 이미지 VLM. 로드뷰는 분석하지 않는다 (LOC-01·02, PRD 3장·9장) |
+| 후보지 조회 | 확장 정보 요약 포함 | 입지 정보(경사도·진입성) 요약 (확장 정보 EXT 삭제, v0.9) |
+| 비교표 `POST /comparisons` | 비교표를 생성·저장하고 GET으로 조회, 일조량·소음 포함 | 저장하지 않고 GET·POST 모두 요청 시 생성. 경사도·진입성·투표만 (CMP-01, 일조·소음은 P1) |
+| 후보지 상세·이름 수정 | 행 없음 | `GET`·`PATCH /api/candidates/{id}` (CAND-02·04) |
 
 ---
 
