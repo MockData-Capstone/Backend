@@ -81,6 +81,19 @@ public enum ErrorCode {
 	// CMP 비교표
 	NOT_ENOUGH_CANDIDATES(HttpStatus.CONFLICT, "후보지를 2개 이상 추가해주세요."),
 
+	// GAME 미니게임
+	GAME_IN_PROGRESS(HttpStatus.CONFLICT, "진행 중인 미니게임이 있습니다."),
+	NOT_ENOUGH_PLAYERS(HttpStatus.BAD_REQUEST, "참여 멤버를 2명 이상 골라주세요."),
+	PLAYER_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "지금 접속 중인 멤버만 참여할 수 있습니다."),
+	VISITOR_RULE_REQUIRED(HttpStatus.BAD_REQUEST, "가위바위보는 방문자 기준(승자/패자)을 골라주세요."),
+	GAME_NOT_FOUND(HttpStatus.NOT_FOUND, "미니게임을 찾을 수 없습니다."),
+	GAME_NOT_IN_PROGRESS(HttpStatus.CONFLICT, "이미 끝났거나 중단된 게임입니다."),
+	NOT_GAME_STARTER(HttpStatus.FORBIDDEN, "게임을 시작한 멤버만 중단할 수 있습니다."),
+	NOT_GAME_PLAYER(HttpStatus.FORBIDDEN, "이 게임에 남아 있는 참가자가 아닙니다."),
+	WRONG_GAME_TYPE(HttpStatus.BAD_REQUEST, "이 게임 종류에서는 할 수 없는 요청입니다."),
+	ROUND_CLOSED(HttpStatus.CONFLICT, "이미 끝났거나 아직 열리지 않은 라운드입니다."),
+	ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이번 라운드에 이미 냈습니다."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
