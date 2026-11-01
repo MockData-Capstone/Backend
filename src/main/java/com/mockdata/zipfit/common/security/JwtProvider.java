@@ -43,14 +43,14 @@ public class JwtProvider {
 			.compact();
 	}
 
-	/** 접근 토큰을 검증하고 회원 ID를 반환한다. */
+	/** 접근 토큰을 검증하고 회원 ID와 만료 시각을 반환한다. */
 	public AccessTokenResult parseAccessToken(String token) {
 		try {
 			Claims claims = parse(token);
 			if (!TYPE_ACCESS.equals(claims.get(CLAIM_TYPE, String.class))) {
 				return new AccessTokenResult.Invalid();
 			}
-			return new AccessTokenResult.Valid(Long.valueOf(claims.getSubject()));
+			return new AccessTokenResult.Valid(Long.valueOf(claims.getSubject()), claims.getExpiration().toInstant());
 		} catch (ExpiredJwtException e) {
 			return new AccessTokenResult.Expired();
 		} catch (JwtException | IllegalArgumentException e) {

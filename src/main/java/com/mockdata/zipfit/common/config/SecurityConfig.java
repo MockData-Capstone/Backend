@@ -49,6 +49,8 @@ public class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers("/api/auth/**", "/error").permitAll()
+				// WebSocket은 접속 주소의 token으로 핸들러에서 인증한다 (SocketAuthInterceptor).
+				.requestMatchers("/ws/**").permitAll()
 				.requestMatchers(HttpMethod.GET, LocalFileStorage.URL_PATH + "**").permitAll()
 				// 로그인 전에도 쓰는 조회: 가입 화면의 닉네임 확인, 초대 참여 확인 화면
 				.requestMatchers(HttpMethod.GET, "/api/users/nickname-availability", "/api/invitations/*").permitAll()
