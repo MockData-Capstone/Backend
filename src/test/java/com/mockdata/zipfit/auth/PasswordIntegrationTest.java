@@ -37,10 +37,23 @@ class PasswordIntegrationTest extends AuthTestSupport {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_INPUT.name()));
 
-		changePassword(tokens.accessToken(), "password1", "newpass99").andExpect(status().isNoContent());
+		changePassword(tokens.accessToken(), "password1", "newpass99")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.hasPassword").value(true));
 
 		login("pw@zipfit.com", "password1").andExpect(status().isUnauthorized());
 		login("pw@zipfit.com", "newpass99").andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("AUTH-05 비밀번호를 바꿀 때 지금 비밀번호를 빼면 바꾸지 않는다")
+	void changePasswordRequiresCurrentPassword() throws Exception {
+		Tokens tokens = signupLocal("nocur@zipfit.com", "password1", "현재비번없음");
+
+		mockMvc.perform(json(bearer(patch("/api/users/me"), tokens.accessToken()), "{\"newPassword\":\"newpass99\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PASSWORD.name()));
+		login("nocur@zipfit.com", "password1").andExpect(status().isOk());
 	}
 
 	@Test
@@ -128,7 +141,7 @@ class PasswordIntegrationTest extends AuthTestSupport {
 	}
 
 	private ResultActions changePassword(String accessToken, String current, String next) throws Exception {
-		return mockMvc.perform(json(bearer(patch("/api/users/me/password"), accessToken),
+		return mockMvc.perform(json(bearer(patch("/api/users/me"), accessToken),
 			"{\"currentPassword\":\"%s\",\"newPassword\":\"%s\"}".formatted(current, next)));
 	}
 

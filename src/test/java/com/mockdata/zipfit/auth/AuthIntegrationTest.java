@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -28,9 +29,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 @SpringBootTest
@@ -185,9 +188,10 @@ class AuthIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.nickname").value("바뀐닉네임"))
 			.andExpect(jsonPath("$.profileImageUrl").value("https://img.kakao.com/p.jpg"));
-		mockMvc.perform(bearer(delete("/api/users/me/profile-image"), tokens.accessToken()))
+		mockMvc.perform(bearer(multipart(HttpMethod.PATCH, "/api/users/me/profile-image"), tokens.accessToken()))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.profileImageUrl").doesNotExist());
+			.andExpect(jsonPath("$.profileImageUrl").doesNotExist())
+			.andExpect(jsonPath("$.hasPassword").value(false));
 	}
 
 	@Test
@@ -246,7 +250,7 @@ class AuthIntegrationTest {
 		return builder.contentType(MediaType.APPLICATION_JSON).content(body);
 	}
 
-	private static MockHttpServletRequestBuilder bearer(MockHttpServletRequestBuilder builder, String token) {
+	private static <B extends AbstractMockHttpServletRequestBuilder<B>> B bearer(B builder, String token) {
 		return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
 	}
 }
