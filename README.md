@@ -317,8 +317,9 @@ src/main/java/com/mockdata/zipfit/
 | 4400 | 접속 주소의 파라미터가 잘못됨 | 주소 확인 |
 | 4401 | 토큰이 없거나 유효하지 않음 | 다시 로그인 |
 | 4402 | 접근 토큰 만료 (연결 중 만료돼도 닫힌다) | 재발급 후 다시 접속 |
-| 4403 | 멤버가 아님, 나감, 내보내짐 | 목록 화면으로 |
-| 4404 | Workspace가 없거나 삭제됨 | 목록 화면으로 |
+| 4403 | 멤버·참여자가 아님, 나감, 내보내짐 | 목록 화면으로 |
+| 4404 | Workspace가 없거나 삭제됨, 투어가 끝남 | 목록 화면으로 |
+| 4409 | 같은 회원이 다른 탭에서 시그널링에 새로 접속함 | 이 연결로는 다시 접속하지 않는다 |
 
 ### 구현된 API
 
@@ -365,6 +366,22 @@ src/main/java/com/mockdata/zipfit/
 | `PATCH` | `/api/candidates/{candidateId}/votes/me` | 내 투표 변경 | VOTE-03 |
 | `GET` | `/api/workspaces/{workspaceId}/votes` | 후보지별 찬성·반대, 의견 갈림(`split`), 멤버별 선택 | VOTE-02 |
 | `GET`, `POST` | `/api/workspaces/{workspaceId}/comparisons?candidateIds=` | 비교표 (요청 시 생성, 저장 안 함, 2개 미만이면 409) | CMP-01 |
+| `POST` | `/api/workspaces/{workspaceId}/minigames` | 미니게임 시작 `{ type: ROULETTE \| ROCK_PAPER_SCISSORS, participantUserIds, visitorRule: WINNER \| LOSER }` | GAME-01 |
+| `GET` | `/api/workspaces/{workspaceId}/minigames/current` | 진행 중인 게임 (없으면 `game: null`) | GAME-05 |
+| `GET` | `/api/workspaces/{workspaceId}/minigames` | 끝나거나 중단된 게임 이력 | GAME-06 |
+| `GET` | `/api/minigames/{gameId}` | 게임 결과 (확정 전 `visitor: null`, 진행 중 라운드의 선택은 비공개) | GAME-03 |
+| `POST` | `/api/minigames/{gameId}/draw` | 룰렛 추첨 | GAME-02 |
+| `POST` | `/api/minigames/{gameId}/rounds/{roundNo}/choices` | 가위바위보 선택 `{ choice: ROCK \| PAPER \| SCISSORS }` (10초 안에 안 내면 서버가 무작위) | GAME-02 |
+| `DELETE` | `/api/minigames/{gameId}` | 게임 중단 (시작한 멤버). 지우지 않고 `ABORTED`가 된 게임을 200으로 돌려준다 | GAME-04 |
+| `POST` | `/api/workspaces/{workspaceId}/tours` | 투어 시작 (가장 최근 미니게임 방문자) → `{ tour, signalingPath, ice }` | TOUR-01 |
+| `GET` | `/api/workspaces/{workspaceId}/tours/current` | 투어 상태·참여자·연결 상태 (없으면 `tour: null`) | TOUR-03 |
+| `GET` | `/api/workspaces/{workspaceId}/tours` | 종료된 투어 이력 | TOUR-06 |
+| `POST` | `/api/tours/{tourId}/participants` | 투어 참여 (방문자 포함 최대 6명) → `{ tour, signalingPath, ice }` | TOUR-02 |
+| `DELETE` | `/api/tours/{tourId}/participants/me` | 투어 나가기 (시청자) | TOUR-04 |
+| `DELETE` | `/api/tours/{tourId}` | 투어 종료 (방문자) | TOUR-04 |
+| `POST` | `/api/tours/{tourId}/rejoin` | 방문자 재참여 (3분 안에 돌아오지 않으면 자동 종료) | TOUR-05 |
+| `GET` | `/api/tours/{tourId}/ice-servers` | STUN·TURN 서버와 시간 제한 자격증명 (`expiresAt` 전에 다시 받기) | TOUR-02 |
+| `WS` | `/ws/signaling?tourId=&token=` | WebRTC 시그널링 | SIG-01~05 |
 
 **Workspace 소켓 메시지** (`/ws/workspaces`)
 
@@ -384,6 +401,29 @@ src/main/java/com/mockdata/zipfit/
 | 서버 → 전원 | `CANDIDATE_UPDATED` | `{ candidateId, name }` |
 | 서버 → 전원 | `CANDIDATE_REMOVED` | `{ candidateId }` |
 | 서버 → 전원 | `VOTE_UPDATED` | 투표 결과 항목과 같음 (`myChoice`는 null, `votes`에서 내 표를 찾는다) |
+| 서버 → 전원 | `GAME_STARTED` | 게임 결과 조회와 같음 |
+| 서버 → 전원 | `ROUND_OPENED` | `{ gameId, roundNo, playerUserIds, deadline }` |
+| 서버 → 전원 | `ROUND_RESULT` | `{ gameId, round: { roundNo, draw, choices, eliminatedUserIds }, remainingUserIds }` |
+| 서버 → 전원 | `GAME_PLAYER_LEFT` | `{ gameId, userId, nickname }` (나가거나 10초 넘게 연결이 끊긴 참가자) |
+| 서버 → 전원 | `GAME_FINISHED` | `{ gameId, visitor: { userId, nickname } }` (방문자는 이때 처음 공개) |
+| 서버 → 전원 | `GAME_ABORTED` | `{ gameId, reason: STOPPED_BY_STARTER \| NOT_ENOUGH_PLAYERS }` |
+| 서버 → 전원 | `TOUR_STARTED` | 투어 상태와 같음 |
+| 서버 → 전원 | `TOUR_ENDED` | `{ tourId, reason }` |
+
+> 미니게임 참가자는 Workspace 소켓에 접속 중인 멤버만 고를 수 있다. 게임 화면에서도 Workspace 소켓을 연결해 두어야 한다.
+
+**시그널링 소켓 메시지** (`/ws/signaling`) — 투어 시작·참여 응답의 `signalingPath`에 `&token=`을 붙여 접속한다.
+
+| 방향 | type | data |
+|---|---|---|
+| 클라이언트 → 서버 | `JOIN` | 없음. 접속 직후 보낸다 (보내기 전에는 중계하지 않는다) |
+| 서버 → 나 | `JOINED` | `{ tourId, selfUserId, visitorUserId, peers: [{ userId, nickname, role, connectionState }] }` |
+| 서버 → 다른 참여자 | `PEER_JOINED` | `{ userId, nickname, role }` (방문자는 이걸 받고 새 참여자에게만 offer를 만든다) |
+| 클라이언트 → 서버 → 상대 | `OFFER`, `ANSWER`, `ICE_CANDIDATE` | 보낼 때 `{ targetUserId, sdp \| candidate }`, 받을 때 `fromUserId`가 붙는다 |
+| 클라이언트 → 서버 | `CONNECTION_STATE` | `{ state: CONNECTING \| CONNECTED \| DISCONNECTED }` |
+| 서버 → 다른 참여자 | `PEER_STATE` | `{ userId, state }` ("방문자 연결 끊김" 표시) |
+| 서버 → 다른 참여자 | `PEER_LEFT` | `{ userId }` (그 상대와의 RTCPeerConnection을 정리) |
+| 서버 → 전원 | `TOUR_ENDED` | `{ tourId, reason }` 뒤 4404로 닫힘 |
 
 ### AI 서버 연동 (`/api/ai/*`)
 
@@ -400,7 +440,7 @@ src/main/java/com/mockdata/zipfit/
 
 ### 구현 예정
 
-minigame, tour, signaling, notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 구현한다. 조건 제안(REC-03), 확정 조건(COND), 매물 검색 링크(LINK)는 API명세서에 아직 행이 없다.
+notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 구현한다. 조건 제안(REC-03), 확정 조건(COND), 매물 검색 링크(LINK)는 API명세서에 아직 행이 없다.
 
 ### API명세서와 다른 점
 
@@ -417,6 +457,8 @@ minigame, tour, signaling, notification은 [`API명세서.md`](./API명세서.md
 | 후보지 조회 | 확장 정보 요약 포함 | 입지 정보(경사도·진입성) 요약 (확장 정보 EXT 삭제, v0.9) |
 | 비교표 `POST /comparisons` | 비교표를 생성·저장하고 GET으로 조회, 일조량·소음 포함 | 저장하지 않고 GET·POST 모두 요청 시 생성. 경사도·진입성·투표만 (CMP-01, 일조·소음은 P1) |
 | 후보지 상세·이름 수정 | 행 없음 | `GET`·`PATCH /api/candidates/{id}` (CAND-02·04) |
+| 미니게임 진행 통지 | 시그널링 카테고리 | 게임 중에는 투어 방이 없어 Workspace 소켓으로 보낸다. 중단(`GAME_ABORTED`)·참가자 이탈(`GAME_PLAYER_LEFT`) 통지 추가 (SIG-06, GAME-02·04) |
+| 시그널링 연결 상태 | `CONNECTION_STATE`만 | 다른 참여자에게 `PEER_STATE`로 알린다 ("방문자 연결 끊김" 표시, SIG-04) |
 
 ---
 
