@@ -110,6 +110,11 @@ public enum ErrorCode {
 	PUSH_SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "등록된 푸시 구독이 없습니다."),
 	INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 페이지 위치입니다."),
 
+	// COND 확정 조건
+	CONDITION_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 확정한 조건이 있습니다. 조건 수정을 이용해주세요."),
+	CONDITION_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 확정한 조건이 없습니다. 조건을 먼저 확정해주세요."),
+	INVALID_RANGE(HttpStatus.BAD_REQUEST, "최솟값이 최댓값보다 클 수 없습니다."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다."),
