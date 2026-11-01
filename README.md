@@ -21,7 +21,7 @@
 5. [Getting Started](#getting-started)
 6. [환경 변수](#환경-변수)
 7. [Folder Structure](#folder-structure)
-8. [API 개요 (Draft)](#api-개요-draft)
+8. [API 개요](#api-개요)
 9. [데이터베이스](#데이터베이스)
 10. [외부 API 사용 정책 및 법적 고려사항](#외부-api-사용-정책-및-법적-고려사항)
 11. [Collaboration Rules](#collaboration-rules)
@@ -69,7 +69,7 @@
 | **0. 회원·Workspace** | `AUTH-01~09` | 카카오 로그인(P0) · 자체 회원가입/로그인/비밀번호 재설정(P1) · 내 정보 관리 · 토큰 재발급 | P0 (일부 P1) |
 | | `WS-01~04` | Workspace 생성·조회·수정·삭제 | P0 |
 | | `MEM-01~06` | 초대 링크 발급(7일 만료)·참여, 멤버 조회, 호스트 위임·내보내기·나가기 | P0 |
-| **1. 채팅** | `CHAT-01~02` | 실시간 채팅 전송(WebSocket/STOMP)·대화 기록 조회. 대화 원본은 AI 분석의 입력 | P0 |
+| **1. 채팅** | `CHAT-01~02` | 실시간 채팅 전송(WebSocket)·대화 기록 조회. 대화 원본은 AI 분석의 입력 | P0 |
 | **2. AI 위치 추천** | `REC-01~03` | 로컬 LLM이 대화에서 **8가지 조건**(지역·보증금·월세·면적·편의시설·목적지·경사 조건·차량 조건) 추출 → 카카오 로컬 API로 후보 검증 → 추천 이유 생성 → **조건 제안**(대화에 없던 조건도 입지 분석 근거와 함께 제안) | P0 |
 | **3. 입지 분석** | `LOC-01~05` | 목적지까지 도보 경로 **경사도**(수치지형도 표고/DEM), **차량 진입성**(도로 폭·계단 공공데이터 + 촬영 지점 VLM 보완), 일조·소음 추정(P1), 로드뷰 직접 확인(P1) | P0 (일부 P1) |
 | **4. 후보지·비교** | `CAND-01~04`, `CMP-01` | 후보지 추가/조회/제외/이름 수정(좌표·이름만 저장), 경사도·진입성 비교표(요청 시 생성, 미저장) | P0 |
@@ -239,9 +239,8 @@ src/main/java/com/mockdata/zipfit/
 ├── ZipfitApplication.java    # 엔트리포인트
 │
 ├── auth/                      # AUTH-01~09: 회원가입, 카카오/자체 로그인, 토큰 재발급
-├── workspace/                 # WS-01~04:  Workspace 생성/조회/수정/삭제
-├── member/                    # MEM-01~06: 초대 링크, 멤버 관리, 호스트 위임
-├── chat/                      # CHAT-01~02: 채팅 메시지, WebSocket(STOMP) 핸들러
+├── workspace/                 # WS-01~04, MEM-01~06: Workspace, 멤버, 초대 링크
+├── chat/                      # CHAT-01~02: 채팅 메시지, Workspace 소켓(/ws/workspaces)
 ├── recommendation/            # REC-01~03: 로컬 LLM 호출, 조건 추출, 조건 제안
 ├── location/                  # LOC-01~05: 경사도·진입성 산출, 일조·소음, 로드뷰
 ├── candidate/                 # CAND-01~04: 후보지 CRUD
@@ -254,9 +253,11 @@ src/main/java/com/mockdata/zipfit/
 ├── signaling/                 # SIG-01~06: WebRTC 시그널링 (SDP/ICE 중계)
 ├── notification/               # NOTI-01~05: 알림 발송, 알림함, 웹 푸시 구독
 └── common/
-    ├── config/                # SecurityConfig, FlywayConfig, WebSocketConfig (예정)
+    ├── config/                # SecurityConfig, WebSocketConfig
+    ├── event/                 # 도메인 간 이벤트 (Workspace 삭제·회원 탈퇴 정리, 실시간 통지)
     ├── exception/              # GlobalExceptionHandler
-    └── security/               # JwtAuthenticationFilter, CurrentUser
+    ├── security/               # JwtAuthenticationFilter, CurrentUser
+    └── websocket/              # WebSocket 인증·연결 관리·메시지 형식
 ```
 
 ### 도메인 패키지 내부 규칙
@@ -277,77 +278,110 @@ src/main/java/com/mockdata/zipfit/
 
 ---
 
-## API 개요 (Draft)
+## API 개요
 
-> 아래는 기능명세서 v0.9 기준 설계 초안이며, 구현 진행에 따라 변경된다. 확정 스펙은 Swagger(springdoc-openapi) 도입 후 `/swagger-ui.html` 참고 예정. 기능 ID는 [`기능명세서.md`](./기능명세서.md) 5장 상세 명세와 1:1 대응한다.
+> 경로·메서드는 [`API명세서.md`](./API명세서.md)(노션 미러)를 따르고, 동작이 [`기능명세서.md`](./기능명세서.md)·[`PRD.md`](./PRD.md)와 다르면 기능명세서·PRD를 따른다. 다른 점은 아래 "API명세서와 다른 점"에 모은다.
 
-> **에러 응답:** `{ "code", "message" }`. 입력 검증 실패(`INVALID_INPUT`)일 때만 `errors: [{ "field", "message" }]`로 잘못된 필드를 모두 알려준다 (COM-10).
+### 공통 규약
+
+**요청**
+- JSON 본문, 필드는 camelCase. 로그인이 필요한 API는 `Authorization: Bearer {accessToken}` 헤더를 붙인다.
+- 수정(`PATCH`)은 보낸 필드만 바꾼다. 보내지 않은 필드는 그대로다.
+
+**응답**
+- 데이터를 감싸지 않고 바로 준다(`{ success, data }` 같은 껍데기 없음). ID는 숫자, 시간은 ISO 8601 UTC 문자열(`"2026-11-01T05:30:00Z"`)이다.
+- 값이 없는 필드는 `null`이거나 응답에서 빠진다.
+
+| 상황 | 상태 코드 | 본문 |
+|---|---|---|
+| 조회·수정 성공 | 200 | 리소스 |
+| 생성 성공 | 201 | 만든 리소스 |
+| 삭제 성공 | 204 | 없음 |
+| 목록 | 200 | `{ "items": [...] }` (비어 있으면 `[]`) |
+| 커서 목록 | 200 | `{ "items": [...], "nextCursor": "123", "hasNext": true }`. 다음 페이지는 `nextCursor`를 그대로 넘긴다 |
+| "없음" 상태 (현재 초대 링크·진행 중 게임·투어) | 200 | 해당 키가 `null`. 예: `{ "invitation": null }` |
+
+**에러** — `{ "code": "NOT_WORKSPACE_MEMBER", "message": "Workspace 멤버만 이용할 수 있습니다." }`
+- 400 입력 오류: `INVALID_INPUT`이면 `errors: [{ "field", "message" }]`로 잘못된 필드를 모두 알려준다 (COM-10).
+- 401 로그인 필요 (`AUTH_TOKEN_EXPIRED`면 `/api/auth/token/refresh`로 재발급 후 다시 요청), 403 권한 없음, 404 없음, 409 중복·상태 충돌, 410 만료된 초대 링크.
+- 화면에 보여줄 문구는 `message`를 그대로 쓰면 된다. 분기는 `code`로 한다.
+
+**WebSocket**
+- 접속: `ws://{host}/ws/...?token={accessToken}` (브라우저 WebSocket은 헤더를 붙일 수 없어 쿼리로 받는다).
+- 메시지: `{ "type": "CHAT_MESSAGE", "data": {...}, "sentAt": "..." }`. 클라이언트가 보낼 때는 `{ "type", "data" }`만 보낸다.
+- 처리하지 못한 요청은 보낸 연결에만 `{ "type": "ERROR", "data": { "code", "message", "requestId" } }`로 알린다.
+- 서버가 연결을 닫는 사유(close code):
+
+| code | 뜻 | 클라이언트 처리 |
+|---|---|---|
+| 4400 | 접속 주소의 파라미터가 잘못됨 | 주소 확인 |
+| 4401 | 토큰이 없거나 유효하지 않음 | 다시 로그인 |
+| 4402 | 접근 토큰 만료 (연결 중 만료돼도 닫힌다) | 재발급 후 다시 접속 |
+| 4403 | 멤버가 아님, 나감, 내보내짐 | 목록 화면으로 |
+| 4404 | Workspace가 없거나 삭제됨 | 목록 화면으로 |
+
+### 구현된 API
 
 | Method | Endpoint | 설명 | 기능 ID |
 |---|---|---|---|
-| `POST` | `/api/auth/signup` | 자체 회원가입 (가입 즉시 토큰 발급) | AUTH-01 |
+| `POST` | `/api/auth/signup` | 자체 회원가입 (가입 즉시 토큰 발급, `privacyAgreed` 필수) | AUTH-01 |
 | `GET` | `/api/auth/email-availability?email=` | 이메일 중복 확인 | AUTH-01 |
-| `GET` | `/api/auth/nickname-availability?nickname=` | 닉네임 중복 확인 (로그인 불필요) | AUTH-01, AUTH-02 |
+| `GET` | `/api/users/nickname-availability?nickname=` | 닉네임 중복 확인 (로그인 불필요) | AUTH-01·05 |
 | `GET` | `/api/auth/{kakao\|google}/authorize-url` | 소셜 인가 URL (앱 키는 서버에만) | AUTH-02 |
 | `POST` | `/api/auth/{kakao\|google}` | 소셜 로그인 → `LOGIN` / `SIGNUP_REQUIRED`, 같은 이메일 자체 계정이 있으면 409 + `linkToken` | AUTH-02 |
 | `POST` | `/api/auth/signup/social` | 소셜 최초 가입 (가입 토큰 + 개인정보 동의 + 닉네임) | AUTH-02 |
-| `POST` | `/api/auth/login` | 자체 로그인 | AUTH-03 |
-| `GET` | `/api/users/me` | 내 정보 조회 | AUTH-04 |
-| `PATCH` | `/api/users/me` | 닉네임 수정 | AUTH-05 |
-| `PATCH` | `/api/users/me/password` | 비밀번호 변경 (자체 가입 회원) | AUTH-05 |
-| `PUT` / `DELETE` | `/api/users/me/profile-image` | 프로필 이미지 변경(multipart `image`, jpg·png·webp 5MB) / 기본 이미지로 | AUTH-05 |
-| `DELETE` | `/api/users/me` | 회원 탈퇴 | AUTH-06 |
-| `POST` | `/api/auth/password-reset/request`, `/api/auth/password-reset/confirm` | 비밀번호 재설정 메일 요청 / 새 비밀번호 설정 | AUTH-07 |
 | `POST` | `/api/auth/{kakao\|google}/link` | 소셜 로그인 중 같은 이메일 계정 연동 (linkToken + 비밀번호) | AUTH-08 |
-| `POST` | `/api/users/me/social/{kakao\|google}` | 내 정보 화면에서 소셜 계정 연동 (인가 코드 + 비밀번호) | AUTH-08 |
+| `POST` | `/api/auth/login` | 자체 로그인 | AUTH-03 |
 | `POST` | `/api/auth/token/refresh`, `/api/auth/logout` | 토큰 재발급 / 로그아웃 | AUTH-09 |
-| `POST` | `/api/workspaces` | Workspace 생성 | WS-01 |
-| `GET` | `/api/workspaces`, `/api/workspaces/{id}` | Workspace 목록/상세 | WS-02 |
-| `PATCH` | `/api/workspaces/{id}` | Workspace 수정 | WS-03 |
-| `DELETE` | `/api/workspaces/{id}` | Workspace 삭제 | WS-04 |
-| `POST` | `/api/workspaces/{id}/invites` | 초대 링크 발급 (7일 만료) | MEM-01 |
-| `POST` | `/api/invites/{token}/accept` | 초대 링크로 참여 | MEM-02 |
-| `GET` | `/api/workspaces/{id}/members` | 멤버 목록 조회 | MEM-03 |
-| `PATCH` | `/api/workspaces/{id}/members/{memberId}/host` | 호스트 위임 | MEM-04 |
-| `DELETE` | `/api/workspaces/{id}/members/{memberId}` | 멤버 내보내기 | MEM-05 |
-| `DELETE` | `/api/workspaces/{id}/members/me` | Workspace 나가기 | MEM-06 |
-| `POST` | `/api/workspaces/{id}/messages` | 채팅 메시지 전송 | CHAT-01 |
-| `GET` | `/api/workspaces/{id}/messages` | 대화 기록 조회 (페이징) | CHAT-02 |
-| `WS` | `/ws/chat` | 실시간 채팅 (STOMP) | CHAT-01 |
-| `POST` | `/api/workspaces/{id}/analyses` | AI 분석 요청·추천 위치 생성 | REC-01 |
-| `GET` | `/api/workspaces/{id}/analyses/latest` | 분석 상태·추천 위치 조회 | REC-02 |
-| `GET` | `/api/workspaces/{id}/analyses/latest/suggestions` | 조건 제안 조회 | REC-03 |
-| `GET` | `/api/candidates/{id}/location-info` | 경사도·진입성 등 입지 정보 조회 | LOC-01~05, LOC-03 |
-| `GET` | `/api/candidates/{id}/roadview` | 로드뷰 표시용 메타 | LOC-05 |
-| `POST` | `/api/workspaces/{id}/candidates` | 후보지 추가 | CAND-01 |
-| `GET` | `/api/workspaces/{id}/candidates` | 후보지 조회 | CAND-02 |
-| `DELETE` | `/api/candidates/{id}` | 후보지 제외 | CAND-03 |
-| `PATCH` | `/api/candidates/{id}` | 후보지 이름 수정 | CAND-04 |
-| `GET` | `/api/workspaces/{id}/candidates/compare` | 비교표 조회 (요청 시 생성) | CMP-01 |
-| `POST` | `/api/candidates/{id}/votes` | 후보지 투표 | VOTE-01 |
-| `GET` | `/api/workspaces/{id}/votes` | 투표 결과 조회 | VOTE-02 |
-| `PATCH` | `/api/candidates/{id}/votes/me` | 투표 변경 | VOTE-03 |
-| `POST` | `/api/workspaces/{id}/condition` | 조건 확정 | COND-01 |
-| `GET` | `/api/workspaces/{id}/condition` | 확정 조건 조회 | COND-02 |
-| `PATCH` | `/api/workspaces/{id}/condition` | 확정 조건 수정 | COND-03 |
-| `GET` | `/api/workspaces/{id}/listing-links` | 매물 검색 딥링크 생성 | LINK-01, LINK-02 |
-| `POST` | `/api/workspaces/{id}/minigames` | 미니게임 시작 | GAME-01 |
-| `POST` | `/api/minigames/{id}/choices` | 미니게임 진행(선택 제출) | GAME-02 |
-| `GET` | `/api/minigames/{id}` | 미니게임 결과 조회 | GAME-03 |
-| `DELETE` | `/api/minigames/{id}` | 미니게임 중단 | GAME-04 |
-| `GET` | `/api/workspaces/{id}/minigames/current` | 진행 중인 미니게임 조회 | GAME-05 |
-| `GET` | `/api/workspaces/{id}/minigames/history` | 미니게임 이력 조회 | GAME-06 (P1) |
-| `POST` | `/api/workspaces/{id}/tours` | 실시간 투어 시작 | TOUR-01 |
-| `POST` | `/api/tours/{id}/participants` | 투어 참여 | TOUR-02 |
-| `GET` | `/api/workspaces/{id}/tours/current` | 투어 상태·참여자 조회 | TOUR-03 |
-| `DELETE` | `/api/tours/{id}/participants/me` | 투어 나가기·종료 | TOUR-04 |
-| `POST` | `/api/tours/{id}/rejoin` | 방문자 투어 재참여 | TOUR-05 |
-| `GET` | `/api/workspaces/{id}/tours/history` | 투어 이력 조회 | TOUR-06 (P1) |
-| `WS` | `/ws/signal` | WebRTC 시그널링 (접속/SDP·ICE 중계/입퇴장/상태/종료 통지) | SIG-01~06 |
-| `GET` | `/api/notifications` | 알림함 조회 | NOTI-02 |
-| `PATCH` | `/api/notifications/{id}/read`, `/api/notifications/read-all` | 알림 읽음 처리 | NOTI-03 |
-| `POST` | `/api/notifications/push-subscriptions` | 웹 푸시 구독 등록 | NOTI-04 (P2) |
-| `DELETE` | `/api/notifications/push-subscriptions/{id}` | 웹 푸시 구독 해제 | NOTI-05 (P2) |
+| `POST` | `/api/auth/password-reset/request`, `/confirm` | 비밀번호 재설정 메일 요청 / 새 비밀번호 설정 | AUTH-07 |
+| `GET` | `/api/users/me` | 내 정보 조회 (`hasPassword` 포함) | AUTH-04 |
+| `PATCH` | `/api/users/me` | 내 정보 수정: `nickname`, `currentPassword` + `newPassword` 중 보낸 것만 | AUTH-05 |
+| `PATCH` | `/api/users/me/profile-image` | 프로필 이미지 변경 (multipart `image`, jpg·png·webp 5MB). `image`를 비우면 기본 이미지 | AUTH-05 |
+| `POST` | `/api/users/me/social/{kakao\|google}` | 내 정보 화면에서 소셜 계정 연동 (인가 코드 + 비밀번호) | AUTH-08 |
+| `DELETE` | `/api/users/me` | 회원 탈퇴 (다른 멤버가 있는 Workspace의 호스트면 409) | AUTH-06 |
+| `POST` | `/api/workspaces` | Workspace 생성 (이름 30자, 설명 200자) | WS-01 |
+| `GET` | `/api/workspaces` | 내 Workspace 목록 (최근 활동순) | WS-02 |
+| `GET` | `/api/workspaces/{workspaceId}` | Workspace 상세 (`myRole` 포함) | WS-02 |
+| `PATCH` | `/api/workspaces/{workspaceId}` | Workspace 수정 (호스트) | WS-03 |
+| `DELETE` | `/api/workspaces/{workspaceId}` | Workspace 삭제 (호스트) | WS-04 |
+| `POST` | `/api/workspaces/{workspaceId}/invitations` | 초대 링크 발급 (호스트, 7일, 다시 발급하면 이전 링크 무효) | MEM-01 |
+| `GET` | `/api/workspaces/{workspaceId}/invitations/current` | 현재 초대 링크 (없으면 `invitation: null`) | MEM-01 |
+| `GET` | `/api/invitations/{token}` | 초대 정보 (로그인 불필요, 만료면 410) | MEM-02 |
+| `POST` | `/api/invitations/{token}/accept` | 초대 수락 → `{ workspaceId, alreadyMember }` | MEM-02 |
+| `GET` | `/api/workspaces/{workspaceId}/members` | 멤버 목록 (참여순) | MEM-03 |
+| `PATCH` | `/api/workspaces/{workspaceId}/host` | 호스트 위임 `{ userId }` | MEM-04 |
+| `DELETE` | `/api/workspaces/{workspaceId}/members/{userId}` | 멤버 내보내기 (호스트) | MEM-05 |
+| `DELETE` | `/api/workspaces/{workspaceId}/members/me` | Workspace 나가기 | MEM-06 |
+| `GET` | `/api/workspaces/{workspaceId}/messages?before=&after=&size=` | 대화 기록 (시간순, 기본 50·최대 100개) | CHAT-02 |
+| `WS` | `/ws/workspaces?workspaceId=&token=` | Workspace 소켓: 채팅과 실시간 동기화 | CHAT-01 |
+
+**Workspace 소켓 메시지** (`/ws/workspaces`)
+
+| 방향 | type | data |
+|---|---|---|
+| 클라이언트 → 서버 | `CHAT_SEND` | `{ clientMessageId, content }` (내용 1~1,000자, 같은 clientMessageId는 다시 저장하지 않음) |
+| 서버 → 전원 | `CHAT_MESSAGE` | `{ messageId, workspaceId, clientMessageId, sender, content, deleted, createdAt }` |
+| 서버 → 전원 | `MEMBER_JOINED` | 멤버 목록 항목과 같음 |
+| 서버 → 전원 | `MEMBER_LEFT`, `MEMBER_KICKED` | `{ userId }` (당사자는 받은 뒤 4403으로 닫힘) |
+| 서버 → 전원 | `HOST_CHANGED` | `{ previousHostUserId, newHostUserId }` |
+| 서버 → 전원 | `WORKSPACE_UPDATED` | `{ workspaceId, name, description }` |
+| 서버 → 전원 | `WORKSPACE_DELETED` | `{ workspaceId }` (받은 뒤 4404로 닫힘) |
+
+### 구현 예정
+
+recommendation, candidate, comparison, vote, minigame, tour, signaling, notification은 [`API명세서.md`](./API명세서.md)의 경로로 이어서 구현한다. 확정 조건(COND)·매물 검색 링크(LINK)·입지 정보(LOC)는 API명세서에 아직 행이 없다.
+
+### API명세서와 다른 점
+
+기능명세서·PRD를 따른 부분이다. 노션 API명세서도 맞춰 고쳐야 한다.
+
+| API | API명세서 | 구현 (근거) |
+|---|---|---|
+| 카카오 로그인 `POST /api/auth/kakao` | 없는 회원은 자동 생성, 이메일 미동의 시 403 | 동의·닉네임을 받은 뒤 가입(`SIGNUP_REQUIRED` → `/signup/social`), 이메일은 선택 (기능명세서 AUTH-02, 7장 #3) |
+| 회원가입 `POST /api/auth/signup` | 이메일·비밀번호·닉네임 | 개인정보 동의 `privacyAgreed`도 받는다 (AUTH-01, COM-07) |
+| 회원 탈퇴 `DELETE /api/users/me` | 채팅은 '탈퇴한 사용자'로 유지 | 내용을 지우고 `deleted: true`로 남긴다 (AUTH-06, NFR-016) |
+| 내 정보 화면 카카오 연동 | 행 없음 | `POST /api/users/me/social/kakao` (AUTH-08) |
+| 구글 로그인 | 행 없음 | `/api/auth/google/...` 구현됨 (팀 결정 필요) |
 
 ---
 
