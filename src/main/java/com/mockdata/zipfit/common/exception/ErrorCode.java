@@ -115,6 +115,9 @@ public enum ErrorCode {
 	CONDITION_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 확정한 조건이 없습니다. 조건을 먼저 확정해주세요."),
 	INVALID_RANGE(HttpStatus.BAD_REQUEST, "최솟값이 최댓값보다 클 수 없습니다."),
 
+	// LINK 매물 검색 링크
+	CONDITION_REQUIRED(HttpStatus.CONFLICT, "매물 검색 링크를 만들려면 조건을 먼저 확정해주세요."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다."),
