@@ -118,6 +118,9 @@ public enum ErrorCode {
 	// LINK 매물 검색 링크
 	CONDITION_REQUIRED(HttpStatus.CONFLICT, "매물 검색 링크를 만들려면 조건을 먼저 확정해주세요."),
 
+	// REC-03 조건 제안
+	SUGGESTION_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "지금은 그 조건을 제안할 근거가 없습니다."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다."),

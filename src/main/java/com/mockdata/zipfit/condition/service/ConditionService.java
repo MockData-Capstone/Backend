@@ -9,12 +9,15 @@ import com.mockdata.zipfit.condition.dto.ConditionRequest;
 import com.mockdata.zipfit.condition.dto.ConditionResponse;
 import com.mockdata.zipfit.condition.dto.ConditionView;
 import com.mockdata.zipfit.condition.entity.HouseCondition;
+import com.mockdata.zipfit.condition.entity.SuggestionType;
+import com.mockdata.zipfit.condition.repository.AcceptedSuggestionRepository;
 import com.mockdata.zipfit.condition.repository.HouseConditionRepository;
 import com.mockdata.zipfit.recommendation.service.RecommendationService;
 import com.mockdata.zipfit.workspace.entity.WorkspaceMember;
 import com.mockdata.zipfit.workspace.service.WorkspaceAccess;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
@@ -30,19 +33,22 @@ public class ConditionService {
 	public static final String CONDITION_UPDATED = "CONDITION_UPDATED";
 
 	private final HouseConditionRepository conditionRepository;
+	private final AcceptedSuggestionRepository acceptedSuggestionRepository;
+	private final ConditionSuggestionService suggestionService;
 	private final RecommendationService recommendationService;
 	private final WorkspaceAccess workspaceAccess;
 	private final ApplicationEventPublisher eventPublisher;
 
-	/** COND-02 확정 조건과, 화면을 미리 채울 초기값 */
+	/** COND-02 확정 조건과, 화면을 미리 채울 초기값(추출 조건 + 받아들인 조건 제안) */
 	@Transactional(readOnly = true)
 	public ConditionView get(Long workspaceId, Long userId) {
 		workspaceAccess.requireMember(workspaceId, userId);
 		ConditionResponse condition = conditionRepository.findByWorkspaceId(workspaceId)
 			.map(ConditionResponse::of)
 			.orElse(null);
+		Set<SuggestionType> accepted = suggestionService.acceptedTypes(workspaceId);
 		ConditionRequest draft = recommendationService.getLatestConditions(workspaceId)
-			.map(ConditionService::toDraft)
+			.map(extracted -> toDraft(extracted, accepted))
 			.orElse(null);
 		return new ConditionView(condition, draft);
 	}
@@ -86,6 +92,7 @@ public class ConditionService {
 	@EventListener
 	@Transactional
 	public void onWorkspaceDeleting(WorkspaceDeletingEvent event) {
+		acceptedSuggestionRepository.deleteAllByWorkspaceId(event.workspaceId());
 		conditionRepository.deleteByWorkspaceId(event.workspaceId());
 	}
 
@@ -108,8 +115,10 @@ public class ConditionService {
 		}
 	}
 
-	private static ConditionRequest toDraft(ExtractedConditions c) {
+	private static ConditionRequest toDraft(ExtractedConditions c, Set<SuggestionType> accepted) {
 		return new ConditionRequest(c.depositMin(), c.depositMax(), c.monthlyRentMin(), c.monthlyRentMax(), c.roomType(),
-			c.areaMin(), c.areaMax(), c.avoidSlope(), c.needVehicleAccess());
+			c.areaMin(), c.areaMax(),
+			accepted.contains(SuggestionType.SLOPE) ? Boolean.TRUE : c.avoidSlope(),
+			accepted.contains(SuggestionType.VEHICLE_ACCESS) ? Boolean.TRUE : c.needVehicleAccess());
 	}
 }
