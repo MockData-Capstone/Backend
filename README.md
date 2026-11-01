@@ -366,6 +366,12 @@ src/main/java/com/mockdata/zipfit/
 | `PATCH` | `/api/candidates/{candidateId}/votes/me` | 내 투표 변경 | VOTE-03 |
 | `GET` | `/api/workspaces/{workspaceId}/votes` | 후보지별 찬성·반대, 의견 갈림(`split`), 멤버별 선택 | VOTE-02 |
 | `GET`, `POST` | `/api/workspaces/{workspaceId}/comparisons?candidateIds=` | 비교표 (요청 시 생성, 저장 안 함, 2개 미만이면 409) | CMP-01 |
+| `GET` | `/api/workspaces/{workspaceId}/condition-suggestions` | 조건 제안 (근거 후보지 포함, 없으면 빈 목록) | REC-03 |
+| `POST` | `/api/workspaces/{workspaceId}/condition-suggestions/{SLOPE\|VEHICLE_ACCESS}/accept` | 제안 받아들이기 → 조건 초기값(확정했으면 확정 조건)에 반영 | REC-03 |
+| `GET` | `/api/workspaces/{workspaceId}/condition` | 확정 조건 + 초기값 `{ condition, draft }` (확정 전 `condition: null`) | COND-02 |
+| `POST` | `/api/workspaces/{workspaceId}/condition` | 조건 확정 (Workspace당 1건) | COND-01 |
+| `PUT` | `/api/workspaces/{workspaceId}/condition` | 확정 조건 수정 (화면 값 전체, 마지막 수정자 기록) | COND-03 |
+| `GET` | `/api/workspaces/{workspaceId}/listing-links?candidateId=` | 매물 검색 링크 (사이트별 url, 반영·제외한 조건) | LINK-01·02 |
 | `POST` | `/api/workspaces/{workspaceId}/minigames` | 미니게임 시작 `{ type: ROULETTE \| ROCK_PAPER_SCISSORS, participantUserIds, visitorRule: WINNER \| LOSER }` | GAME-01 |
 | `GET` | `/api/workspaces/{workspaceId}/minigames/current` | 진행 중인 게임 (없으면 `game: null`) | GAME-05 |
 | `GET` | `/api/workspaces/{workspaceId}/minigames` | 끝나거나 중단된 게임 이력 | GAME-06 |
@@ -415,6 +421,8 @@ src/main/java/com/mockdata/zipfit/
 | 서버 → 전원 | `GAME_PLAYER_LEFT` | `{ gameId, userId, nickname }` (나가거나 10초 넘게 연결이 끊긴 참가자) |
 | 서버 → 전원 | `GAME_FINISHED` | `{ gameId, visitor: { userId, nickname } }` (방문자는 이때 처음 공개) |
 | 서버 → 전원 | `GAME_ABORTED` | `{ gameId, reason: STOPPED_BY_STARTER \| NOT_ENOUGH_PLAYERS }` |
+| 서버 → 전원 | `CONDITION_UPDATED` | 확정 조건과 같음 (`lastModifiedBy`로 덮어쓴 멤버 표시) |
+| 서버 → 전원 | `CONDITION_SUGGESTION_ACCEPTED` | `{ type }` → 조건 제안을 다시 조회한다 |
 | 서버 → 전원 | `TOUR_STARTED` | 투어 상태와 같음 |
 | 서버 → 전원 | `TOUR_ENDED` | `{ tourId, reason }` |
 
@@ -458,7 +466,9 @@ src/main/java/com/mockdata/zipfit/
 
 ### 구현 예정
 
-- 조건 제안(REC-03), 확정 조건(COND), 매물 검색 링크(LINK): API명세서에 아직 행이 없다.
+- 매물 검색 링크의 사이트별 가격·면적·방 구조 파라미터 (PRD Q6): 확인 전이라 네이버 부동산은 지도 위치만, 직방은 지도 메인으로 연결하고 나머지 조건은 `excludedConditions`로 안내한다. 확인되면 `listinglink/ListingSites`에 반영한다.
+- 편의시설 조건 제안(REC-03): 후보 주변 시설 정보(지도 API)를 백엔드가 아직 조회하지 않아 경사·차량 제안만 한다.
+- 일조·소음(LOC-04, P1): AI 서버 산출이 필요하다.
 - 웹 푸시 실제 발송(P2): 구독 저장까지만 하고 발송은 로그만 남긴다(`LoggingWebPushSender`). VAPID 키 발급 후 구현한다.
 
 ### API명세서와 다른 점
@@ -478,6 +488,7 @@ src/main/java/com/mockdata/zipfit/
 | 후보지 상세·이름 수정 | 행 없음 | `GET`·`PATCH /api/candidates/{id}` (CAND-02·04) |
 | 미니게임 진행 통지 | 시그널링 카테고리 | 게임 중에는 투어 방이 없어 Workspace 소켓으로 보낸다. 중단(`GAME_ABORTED`)·참가자 이탈(`GAME_PLAYER_LEFT`) 통지 추가 (SIG-06, GAME-02·04) |
 | 시그널링 연결 상태 | `CONNECTION_STATE`만 | 다른 참여자에게 `PEER_STATE`로 알린다 ("방문자 연결 끊김" 표시, SIG-04) |
+| 조건 제안·확정 조건·매물 검색 링크 | 행 없음 | 기능명세서(REC-03, COND-01~03, LINK-01·02)를 보고 경로를 정했다. 노션에 추가 필요 |
 | 보고 있는 Workspace 보고 `VIEWING_WORKSPACE` | 생략 가능 | Workspace 소켓 접속으로 판단하므로 받지 않는다 (API명세서 설명대로 생략) |
 
 ---
