@@ -67,6 +67,13 @@ public enum ErrorCode {
 	NO_CONVERSATION(HttpStatus.CONFLICT, "대화 기록이 없어 분석할 수 없습니다. 먼저 채팅으로 원하는 집 조건을 이야기해주세요."),
 	ANALYSIS_IN_PROGRESS(HttpStatus.CONFLICT, "이미 분석 중입니다. 분석이 끝나면 알려드릴게요."),
 
+	// CAND 후보지
+	RECOMMENDATION_NOT_FOUND(HttpStatus.NOT_FOUND, "추천 위치를 찾을 수 없습니다."),
+	NO_COORDINATES(HttpStatus.BAD_REQUEST, "좌표가 없는 위치는 후보지로 추가할 수 없습니다."),
+	DUPLICATE_CANDIDATE(HttpStatus.CONFLICT, "이미 후보지로 추가된 위치입니다."),
+	CANDIDATE_NOT_FOUND(HttpStatus.NOT_FOUND, "이미 제외되었거나 없는 후보지입니다."),
+	NOT_CANDIDATE_OWNER(HttpStatus.FORBIDDEN, "후보지를 추가한 멤버나 호스트만 제외할 수 있습니다."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
