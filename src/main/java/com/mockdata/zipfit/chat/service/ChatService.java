@@ -107,6 +107,18 @@ public class ChatService {
 		return messageRepository.existsByWorkspaceId(workspaceId);
 	}
 
+	/** AI 분석(REC-01)의 입력. 최근 limit개를 오래된 것부터 돌려준다. 탈퇴한 회원의 메시지는 뺀다. */
+	@Transactional(readOnly = true)
+	public List<ConversationLine> getConversation(Long workspaceId, int limit) {
+		List<ConversationLine> lines = new ArrayList<>(
+			messageRepository.findByWorkspaceIdAndDeletedFalseOrderByIdDesc(workspaceId, PageRequest.ofSize(limit)).stream()
+				.map(m -> new ConversationLine(m.getSender().getId(), m.getContent(), m.getCreatedAt()))
+				.toList()
+		);
+		Collections.reverse(lines);
+		return lines;
+	}
+
 	/** WS-04 Workspace 삭제 시 대화 원본을 파기한다 (NFR-016). */
 	@EventListener
 	@Transactional
@@ -130,5 +142,8 @@ public class ChatService {
 	}
 
 	public record SendResult(ChatMessageResponse message, boolean created) {
+	}
+
+	public record ConversationLine(Long senderId, String content, Instant sentAt) {
 	}
 }
