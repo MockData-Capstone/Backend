@@ -78,6 +78,9 @@ public enum ErrorCode {
 	ALREADY_VOTED(HttpStatus.CONFLICT, "이미 투표한 후보지입니다. 투표 변경을 이용해주세요."),
 	VOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "아직 투표하지 않은 후보지입니다."),
 
+	// CMP 비교표
+	NOT_ENOUGH_CANDIDATES(HttpStatus.CONFLICT, "후보지를 2개 이상 추가해주세요."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
