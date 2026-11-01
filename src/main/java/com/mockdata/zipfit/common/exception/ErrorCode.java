@@ -105,6 +105,11 @@ public enum ErrorCode {
 	ONLY_VISITOR_ALLOWED(HttpStatus.FORBIDDEN, "방문자만 할 수 있습니다."),
 	VISITOR_CANNOT_LEAVE(HttpStatus.CONFLICT, "방문자는 나가기 대신 투어 종료를 이용해주세요."),
 
+	// NOTI 알림
+	NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
+	PUSH_SUBSCRIPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "등록된 푸시 구독이 없습니다."),
+	INVALID_CURSOR(HttpStatus.BAD_REQUEST, "잘못된 페이지 위치입니다."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다."),

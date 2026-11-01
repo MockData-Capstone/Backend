@@ -62,7 +62,10 @@ public abstract class AuthTestSupport {
 		given(googleClient.provider()).willReturn(OAuthProvider.GOOGLE);
 	}
 
-	/** 도메인이 늘어도 고치지 않도록 모든 테이블을 비운다. */
+	/**
+	 * 도메인이 늘어도 고치지 않도록 모든 테이블을 비운다.
+	 * ID는 이어서 쓴다. 앞 테스트의 WebSocket 연결이 남아 있어도 새 회원·Workspace와 ID가 겹치지 않게 하기 위해서다.
+	 */
 	@AfterEach
 	void cleanUp() {
 		List<String> tables = jdbcTemplate.queryForList(
@@ -70,7 +73,7 @@ public abstract class AuthTestSupport {
 			String.class
 		);
 		jdbcTemplate.execute("set referential_integrity false");
-		tables.forEach(table -> jdbcTemplate.execute("truncate table \"" + table + "\" restart identity"));
+		tables.forEach(table -> jdbcTemplate.execute("truncate table \"" + table + "\""));
 		jdbcTemplate.execute("set referential_integrity true");
 	}
 
