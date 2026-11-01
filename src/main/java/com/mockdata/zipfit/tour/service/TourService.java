@@ -31,6 +31,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -207,8 +208,9 @@ public class TourService {
 	/**
 	 * SIG-04 연결 상태 반영. 방문자가 끊기면 그 시각부터 재참여 대기 시간을 잰다.
 	 * 진행 중이 아니거나 참여자가 아니면 무시한다.
+	 * 커밋 뒤 소켓을 닫는 과정(시그널링 연결 종료)에서도 불리므로 항상 새 트랜잭션에서 처리한다.
 	 */
-	@Transactional
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void reportConnectionState(Long tourId, Long userId, ConnectionState state) {
 		tourRepository.findForUpdate(tourId).filter(TourSession::isInProgress).ifPresent(tour ->
 			participantRepository.findByTourIdAndUserId(tourId, userId).filter(TourParticipant::isActive).ifPresent(p -> {
