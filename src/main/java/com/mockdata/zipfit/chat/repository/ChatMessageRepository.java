@@ -28,6 +28,9 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 	@EntityGraph(attributePaths = "sender")
 	List<ChatMessage> findByWorkspaceIdAndIdGreaterThanOrderByIdAsc(Long workspaceId, Long after, Pageable pageable);
 
+	/** AI 분석 입력: 탈퇴한 회원의 메시지를 뺀 최신 메시지부터 */
+	List<ChatMessage> findByWorkspaceIdAndDeletedFalseOrderByIdDesc(Long workspaceId, Pageable pageable);
+
 	boolean existsByWorkspaceId(Long workspaceId);
 
 	@Modifying(flushAutomatically = true)

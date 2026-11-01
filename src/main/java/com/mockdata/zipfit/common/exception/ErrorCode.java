@@ -63,6 +63,10 @@ public enum ErrorCode {
 	EMPTY_MESSAGE(HttpStatus.BAD_REQUEST, "빈 메시지는 보낼 수 없습니다."),
 	MESSAGE_TOO_LONG(HttpStatus.BAD_REQUEST, "메시지는 1,000자까지 보낼 수 있습니다."),
 
+	// REC AI 분석·추천
+	NO_CONVERSATION(HttpStatus.CONFLICT, "대화 기록이 없어 분석할 수 없습니다. 먼저 채팅으로 원하는 집 조건을 이야기해주세요."),
+	ANALYSIS_IN_PROGRESS(HttpStatus.CONFLICT, "이미 분석 중입니다. 분석이 끝나면 알려드릴게요."),
+
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
 	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
