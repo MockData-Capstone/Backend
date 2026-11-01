@@ -16,6 +16,8 @@ public final class WsCloseCodes {
 	public static final CloseStatus FORBIDDEN = new CloseStatus(4403, "FORBIDDEN");
 	/** 대상(Workspace·투어)이 없거나 삭제·종료됐다. */
 	public static final CloseStatus NOT_FOUND = new CloseStatus(4404, "NOT_FOUND");
+	/** 같은 회원이 같은 방에 새로 접속해 이전 연결을 닫는다. 이 연결로는 다시 접속하지 않는다. */
+	public static final CloseStatus REPLACED = new CloseStatus(4409, "REPLACED");
 	/** 접속 주소의 쿼리 파라미터가 잘못됐다. */
 	public static final CloseStatus BAD_REQUEST = new CloseStatus(4400, "BAD_REQUEST");
 

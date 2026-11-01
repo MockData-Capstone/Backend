@@ -107,7 +107,11 @@ public enum ErrorCode {
 
 	// WebSocket 공통
 	INVALID_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
-	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다.");
+	UNSUPPORTED_SOCKET_MESSAGE(HttpStatus.BAD_REQUEST, "지원하지 않는 메시지입니다."),
+
+	// SIG 시그널링
+	NOT_JOINED(HttpStatus.BAD_REQUEST, "JOIN을 먼저 보내주세요."),
+	PEER_NOT_FOUND(HttpStatus.BAD_REQUEST, "상대가 투어 방에 없습니다.");
 
 	private final HttpStatus status;
 	private final String message;

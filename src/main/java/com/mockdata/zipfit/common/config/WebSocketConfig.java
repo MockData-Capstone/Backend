@@ -2,6 +2,7 @@ package com.mockdata.zipfit.common.config;
 
 import com.mockdata.zipfit.chat.socket.WorkspaceSocketHandler;
 import com.mockdata.zipfit.common.websocket.SocketAuthInterceptor;
+import com.mockdata.zipfit.signaling.SignalingSocketHandler;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -15,23 +16,30 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 public class WebSocketConfig implements WebSocketConfigurer {
 
 	private final WorkspaceSocketHandler workspaceSocketHandler;
+	private final SignalingSocketHandler signalingSocketHandler;
 	private final SocketAuthInterceptor socketAuthInterceptor;
 	private final List<String> allowedOrigins;
 
 	public WebSocketConfig(
 		WorkspaceSocketHandler workspaceSocketHandler,
+		SignalingSocketHandler signalingSocketHandler,
 		SocketAuthInterceptor socketAuthInterceptor,
 		@Value("${cors.allowed-origins}") List<String> allowedOrigins
 	) {
 		this.workspaceSocketHandler = workspaceSocketHandler;
+		this.signalingSocketHandler = signalingSocketHandler;
 		this.socketAuthInterceptor = socketAuthInterceptor;
 		this.allowedOrigins = allowedOrigins;
 	}
 
 	@Override
 	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+		String[] origins = allowedOrigins.toArray(String[]::new);
 		registry.addHandler(workspaceSocketHandler, "/ws/workspaces")
 			.addInterceptors(socketAuthInterceptor)
-			.setAllowedOrigins(allowedOrigins.toArray(String[]::new));
+			.setAllowedOrigins(origins);
+		registry.addHandler(signalingSocketHandler, "/ws/signaling")
+			.addInterceptors(socketAuthInterceptor)
+			.setAllowedOrigins(origins);
 	}
 }
