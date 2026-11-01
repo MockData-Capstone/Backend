@@ -8,6 +8,7 @@ import com.mockdata.zipfit.auth.entity.User;
 import com.mockdata.zipfit.auth.oauth.OAuthClients;
 import com.mockdata.zipfit.auth.repository.SocialAccountRepository;
 import com.mockdata.zipfit.auth.repository.UserRepository;
+import com.mockdata.zipfit.common.event.UserWithdrawingEvent;
 import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
 import com.mockdata.zipfit.common.storage.FileStorage;
@@ -15,6 +16,7 @@ import com.mockdata.zipfit.common.storage.ImageFormat;
 import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +36,7 @@ public class UserService {
 	private final TokenService tokenService;
 	private final PasswordService passwordService;
 	private final FileStorage fileStorage;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Transactional(readOnly = true)
 	public UserResponse getMe(Long userId) {
@@ -107,16 +110,14 @@ public class UserService {
 	}
 
 	/**
-	 * 회원 탈퇴. 제공자 연결을 끊고(카카오) 인증 토큰·비밀번호 재설정 토큰·소셜 연동·프로필 이미지·회원을 삭제한다.
-	 * TODO(AUTH-06): Workspace·채팅·투표·알림 도메인이 생기면 아래를 함께 처리한다.
-	 *  - 다른 멤버가 있는 Workspace의 호스트면 탈퇴를 막는다(위임 후 탈퇴).
-	 *  - 혼자 남은 Workspace는 삭제하고, 나머지 Workspace에서는 탈퇴 처리한다.
-	 *  - 작성한 채팅 메시지는 내용을 삭제하고, 투표는 집계에서 제외한다.
-	 *  - 알림·푸시 구독을 삭제한다.
+	 * 회원 탈퇴. Workspace·채팅 등 다른 도메인은 {@link UserWithdrawingEvent}를 받아 먼저 정리한다.
+	 * 다른 멤버가 있는 Workspace의 호스트면 그때 막히므로, 카카오 연결 끊기 같은 외부 호출보다 먼저 발행한다.
+	 * 그다음 제공자 연결을 끊고(카카오) 인증 토큰·비밀번호 재설정 토큰·소셜 연동·프로필 이미지·회원을 삭제한다.
 	 */
 	@Transactional
 	public void withdraw(Long userId) {
 		User user = findUser(userId);
+		eventPublisher.publishEvent(new UserWithdrawingEvent(userId));
 		List<SocialAccount> accounts = socialAccountRepository.findAllByUserId(userId);
 		for (SocialAccount account : accounts) {
 			oauthClients.find(account.getProvider()).ifPresent(client -> client.unlink(account.getProviderUserId()));
