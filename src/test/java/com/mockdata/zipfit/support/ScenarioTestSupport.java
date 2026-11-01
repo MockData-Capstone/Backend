@@ -21,11 +21,16 @@ public abstract class ScenarioTestSupport extends AuthTestSupport {
 
 	/** 호스트·손님이 있고, 대화 분석이 끝나 추천 위치 3곳이 있는 Workspace */
 	protected Scenario analyzedWorkspace() throws Exception {
+		return analyzedWorkspace("성수 투룸 월세 60만");
+	}
+
+	/** conversation: 분석할 대화 (FakeAiClient는 지역·금액·방 구조·경사·차량 키워드를 뽑는다) */
+	protected Scenario analyzedWorkspace(String conversation) throws Exception {
 		String host = signupLocal("host@zipfit.com", "password1", "호스트").accessToken();
 		Long workspaceId = createWorkspace(host, "시나리오방");
 		String guest = joinMember(host, workspaceId, "guest@zipfit.com", "손님");
 		Long hostId = userIdOf("host@zipfit.com");
-		chatService.send(workspaceId, hostId, "c-1", "성수 투룸 월세 60만");
+		chatService.send(workspaceId, hostId, "c-1", conversation);
 
 		String path = "/api/workspaces/%d/recommendations".formatted(workspaceId);
 		mockMvc.perform(bearer(post(path), host)).andExpect(status().isAccepted());

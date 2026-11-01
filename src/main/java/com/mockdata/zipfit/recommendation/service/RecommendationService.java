@@ -100,6 +100,13 @@ public class RecommendationService {
 			.map(analysis -> readConditions(analysis.getConditionsJson()));
 	}
 
+	/** 조건 제안(REC-03): 가장 최근에 완료된 분석. 받아들인 제안은 분석마다 따로 기록한다. */
+	@Transactional(readOnly = true)
+	public Optional<Long> getLatestCompletedAnalysisId(Long workspaceId) {
+		return analysisRepository.findFirstByWorkspaceIdAndStatusOrderByIdDesc(workspaceId, AnalysisStatus.COMPLETED)
+			.map(Analysis::getId);
+	}
+
 	/** 후보지 추가(CAND-01)에 쓰는 추천 위치. 다른 Workspace의 추천이면 empty다. */
 	@Transactional(readOnly = true)
 	public Optional<Recommendation> findRecommendation(Long workspaceId, Long recommendationId) {

@@ -68,6 +68,19 @@ public class HouseCondition {
 		replace(request, userId, nickname, now);
 	}
 
+	/** 조건 제안(REC-03)을 받아들이면 확정 조건에도 반영한다. */
+	public void acceptSuggestion(boolean avoidSlope, boolean needVehicleAccess, Long userId, String nickname, Instant now) {
+		if (avoidSlope) {
+			this.avoidSlope = true;
+		}
+		if (needVehicleAccess) {
+			this.needVehicleAccess = true;
+		}
+		this.lastModifiedByUserId = userId;
+		this.lastModifiedByNickname = nickname;
+		this.updatedAt = now;
+	}
+
 	/** 동시에 수정하면 마지막 저장을 반영한다 (제안). */
 	public void replace(ConditionRequest request, Long userId, String nickname, Instant now) {
 		this.depositMin = request.depositMin();
