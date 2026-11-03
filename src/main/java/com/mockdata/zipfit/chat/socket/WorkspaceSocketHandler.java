@@ -2,15 +2,18 @@ package com.mockdata.zipfit.chat.socket;
 
 import com.mockdata.zipfit.chat.dto.ChatSendRequest;
 import com.mockdata.zipfit.chat.service.ChatService;
+import com.mockdata.zipfit.common.event.WorkspaceEvent;
 import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
 import com.mockdata.zipfit.common.websocket.SocketSessions;
 import com.mockdata.zipfit.common.websocket.WsCloseCodes;
 import com.mockdata.zipfit.common.websocket.WsMessage;
 import com.mockdata.zipfit.workspace.service.WorkspaceAccess;
+import com.mockdata.zipfit.workspace.service.WorkspaceEventTypes;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -37,6 +40,7 @@ public class WorkspaceSocketHandler extends TextWebSocketHandler {
 	private final WorkspaceAccess workspaceAccess;
 	private final ChatService chatService;
 	private final JsonMapper jsonMapper;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Override
 	public void afterConnectionEstablished(WebSocketSession raw) {
@@ -57,7 +61,11 @@ public class WorkspaceSocketHandler extends TextWebSocketHandler {
 			return;
 		}
 		raw.getAttributes().put(WORKSPACE_ID, workspaceId.get());
-		registry.register(workspaceId.get(), socketSessions.track(raw));
+		WebSocketSession session = socketSessions.track(raw);
+		if (registry.register(workspaceId.get(), session)) {
+			eventPublisher.publishEvent(new WorkspaceEvent(workspaceId.get(), WorkspaceEventTypes.MEMBER_ONLINE,
+				new MemberOnlineChanged(SocketSessions.userId(session))));
+		}
 	}
 
 	@Override
@@ -112,8 +120,9 @@ public class WorkspaceSocketHandler extends TextWebSocketHandler {
 	@Override
 	public void afterConnectionClosed(WebSocketSession raw, CloseStatus status) {
 		Long workspaceId = (Long) raw.getAttributes().get(WORKSPACE_ID);
-		if (workspaceId != null) {
-			registry.unregister(workspaceId, raw);
+		if (workspaceId != null && registry.unregister(workspaceId, raw)) {
+			eventPublisher.publishEvent(new WorkspaceEvent(workspaceId, WorkspaceEventTypes.MEMBER_OFFLINE,
+				new MemberOnlineChanged(SocketSessions.userId(raw))));
 		}
 		socketSessions.untrack(raw);
 	}
@@ -128,5 +137,9 @@ public class WorkspaceSocketHandler extends TextWebSocketHandler {
 
 	/** 클라이언트가 보내는 메시지. data는 type에 따라 다르다. */
 	record Incoming(String type, JsonNode data) {
+	}
+
+	/** MEMBER_ONLINE/MEMBER_OFFLINE 통지의 data. 같은 회원이 여러 탭이면 첫 연결·마지막 해제 때만 보낸다. */
+	public record MemberOnlineChanged(Long userId) {
 	}
 }

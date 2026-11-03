@@ -9,6 +9,8 @@ public final class WorkspaceEventTypes {
 	public static final String MEMBER_LEFT = "MEMBER_LEFT";
 	public static final String MEMBER_KICKED = "MEMBER_KICKED";
 	public static final String HOST_CHANGED = "HOST_CHANGED";
+	public static final String MEMBER_ONLINE = "MEMBER_ONLINE";
+	public static final String MEMBER_OFFLINE = "MEMBER_OFFLINE";
 
 	private WorkspaceEventTypes() {
 	}
