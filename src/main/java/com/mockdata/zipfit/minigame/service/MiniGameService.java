@@ -155,6 +155,7 @@ public class MiniGameService {
 			throw new BusinessException(ErrorCode.ALREADY_SUBMITTED);
 		}
 		choiceRepository.saveAndFlush(new MiniGameChoice(game, roundNo, userId, hand, false));
+		publish(game, GameEvents.ROUND_CHOICE_SUBMITTED, new GameEvents.ChoiceSubmitted(game.getId(), roundNo, userId));
 		resolveIfComplete(game, playing);
 		return toResponse(game);
 	}
