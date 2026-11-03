@@ -406,6 +406,7 @@ src/main/java/com/mockdata/zipfit/
 | 서버 → 전원 | `CHAT_MESSAGE` | `{ messageId, workspaceId, clientMessageId, sender, content, deleted, createdAt }` |
 | 서버 → 전원 | `MEMBER_JOINED` | 멤버 목록 항목과 같음 |
 | 서버 → 전원 | `MEMBER_LEFT`, `MEMBER_KICKED` | `{ userId }` (당사자는 받은 뒤 4403으로 닫힘) |
+| 서버 → 전원 | `MEMBER_ONLINE`, `MEMBER_OFFLINE` | `{ userId }` (같은 회원이 여러 탭이면 첫 연결·마지막 해제 때만 보낸다) |
 | 서버 → 전원 | `HOST_CHANGED` | `{ previousHostUserId, newHostUserId }` |
 | 서버 → 전원 | `WORKSPACE_UPDATED` | `{ workspaceId, name, description }` |
 | 서버 → 전원 | `WORKSPACE_DELETED` | `{ workspaceId }` (받은 뒤 4404로 닫힘) |
@@ -418,6 +419,7 @@ src/main/java/com/mockdata/zipfit/
 | 서버 → 전원 | `VOTE_UPDATED` | 투표 결과 항목과 같음 (`myChoice`는 null, `votes`에서 내 표를 찾는다) |
 | 서버 → 전원 | `GAME_STARTED` | 게임 결과 조회와 같음 |
 | 서버 → 전원 | `ROUND_OPENED` | `{ gameId, roundNo, playerUserIds, deadline }` |
+| 서버 → 전원 | `ROUND_CHOICE_SUBMITTED` | `{ gameId, roundNo, userId }` (누가 냈는지만 알리고, 무엇을 냈는지는 라운드가 끝나야 공개한다) |
 | 서버 → 전원 | `ROUND_RESULT` | `{ gameId, round: { roundNo, draw, choices, eliminatedUserIds }, remainingUserIds }` |
 | 서버 → 전원 | `GAME_PLAYER_LEFT` | `{ gameId, userId, nickname }` (나가거나 10초 넘게 연결이 끊긴 참가자) |
 | 서버 → 전원 | `GAME_FINISHED` | `{ gameId, visitor: { userId, nickname } }` (방문자는 이때 처음 공개) |

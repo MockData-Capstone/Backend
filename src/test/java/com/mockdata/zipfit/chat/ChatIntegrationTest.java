@@ -242,9 +242,16 @@ class ChatIntegrationTest extends AuthTestSupport {
 			session.sendMessage(new TextMessage(payload));
 		}
 
+		/** 연결·해제 때마다 오가는 MEMBER_ONLINE/OFFLINE은 건너뛰고, 테스트가 보려는 메시지를 돌려준다. */
 		String next() throws InterruptedException {
-			String message = poll(Duration.ofSeconds(5));
-			assertThat(message).as("5초 안에 메시지를 받아야 한다").isNotNull();
+			Instant deadline = Instant.now().plusSeconds(5);
+			String message;
+			String type;
+			do {
+				message = poll(Duration.between(Instant.now(), deadline));
+				assertThat(message).as("5초 안에 메시지를 받아야 한다").isNotNull();
+				type = JsonPath.read(message, "$.type");
+			} while ("MEMBER_ONLINE".equals(type) || "MEMBER_OFFLINE".equals(type));
 			return message;
 		}
 

@@ -47,7 +47,7 @@
 | 현재 초대 링크 조회 | GET | `/api/workspaces/{workspaceId}/invitations/current` | [MEM-01 보조] 호스트에게 유효한 초대 링크와 만료 시각을 반환하고, 없으면 없음 상태를 반환한다. |
 | 초대 정보 조회 | GET | `/api/invitations/{token}` | [MEM-02 보조] Workspace 이름, 호스트 닉네임, 멤버 수를 반환하고, 만료·무효 링크면 410을 반환한다. 로그인하지 않아도 조회할 수 있다. |
 | 초대 수락 | POST | `/api/invitations/{token}/accept` | [MEM-02] 링크가 유효하면 멤버로 등록하고 Workspace ID를 반환한다. 이미 멤버면 같은 Workspace ID를 반환한다. 만료·무효 링크는 "만료된 초대 링크입니다"로 안내한다. |
-| 멤버 목록 조회 | GET | `/api/workspaces/{workspaceId}/members` | [MEM-03] 멤버의 닉네임, 프로필 이미지, 역할(호스트/멤버), 참여 시각을 반환한다. 멤버가 아니면 조회할 수 없다. |
+| 멤버 목록 조회 | GET | `/api/workspaces/{workspaceId}/members` | [MEM-03] 멤버의 닉네임, 프로필 이미지, 역할(호스트/멤버), 참여 시각, Workspace 소켓 접속 여부(`online`)를 반환한다. 멤버가 아니면 조회할 수 없다. |
 | 호스트 위임 | PATCH | `/api/workspaces/{workspaceId}/host` | [MEM-04] 호스트가 지정한 멤버를 새 호스트로 바꾸고 기존 호스트는 일반 멤버가 된다. 본인이나 멤버가 아닌 사람에게는 위임할 수 없다. |
 | 멤버 내보내기 | DELETE | `/api/workspaces/{workspaceId}/members/{userId}` | [MEM-05] 호스트가 대상의 멤버 자격을 없애고 진행 중인 투어에서도 제외한다. 호스트 본인은 내보낼 수 없다. 대상의 채팅은 유지하고 투표는 집계에서 뺀다. |
 | Workspace 나가기 | DELETE | `/api/workspaces/{workspaceId}/members/me` | [MEM-06] 본인의 멤버 자격을 없앤다. 호스트는 위임한 뒤에만 나갈 수 있다. 혼자 남은 호스트에게는 Workspace 삭제를 안내한다. |

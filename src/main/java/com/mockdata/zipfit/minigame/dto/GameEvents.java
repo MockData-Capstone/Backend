@@ -12,6 +12,7 @@ public final class GameEvents {
 
 	public static final String GAME_STARTED = "GAME_STARTED";
 	public static final String ROUND_OPENED = "ROUND_OPENED";
+	public static final String ROUND_CHOICE_SUBMITTED = "ROUND_CHOICE_SUBMITTED";
 	public static final String ROUND_RESULT = "ROUND_RESULT";
 	public static final String GAME_PLAYER_LEFT = "GAME_PLAYER_LEFT";
 	public static final String GAME_FINISHED = "GAME_FINISHED";
@@ -21,6 +22,10 @@ public final class GameEvents {
 	}
 
 	public record RoundOpened(Long gameId, int roundNo, List<Long> playerUserIds, Instant deadline) {
+	}
+
+	/** 라운드 중 누군가 선택을 제출할 때마다 보낸다. 무엇을 냈는지는 라운드가 끝나야 공개하므로 제외한다. */
+	public record ChoiceSubmitted(Long gameId, int roundNo, Long userId) {
 	}
 
 	public record RoundResult(Long gameId, GameResponse.Round round, List<Long> remainingUserIds) {
