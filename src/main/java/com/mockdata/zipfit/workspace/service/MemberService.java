@@ -1,5 +1,6 @@
 package com.mockdata.zipfit.workspace.service;
 
+import com.mockdata.zipfit.chat.socket.WorkspaceSessionRegistry;
 import com.mockdata.zipfit.common.event.UserWithdrawingEvent;
 import com.mockdata.zipfit.common.event.WorkspaceEvent;
 import com.mockdata.zipfit.common.exception.BusinessException;
@@ -29,6 +30,7 @@ public class MemberService {
 	private final InvitationRepository invitationRepository;
 	private final WorkspaceAccess workspaceAccess;
 	private final WorkspaceService workspaceService;
+	private final WorkspaceSessionRegistry sessionRegistry;
 	private final ApplicationEventPublisher eventPublisher;
 
 	/** MEM-03 참여순 */
@@ -36,7 +38,7 @@ public class MemberService {
 	public List<MemberResponse> getMembers(Long workspaceId, Long userId) {
 		workspaceAccess.requireMember(workspaceId, userId);
 		return memberRepository.findAllByWorkspaceIdOrderByCreatedAtAscIdAsc(workspaceId).stream()
-			.map(MemberResponse::of)
+			.map(member -> MemberResponse.of(member, sessionRegistry.isConnected(workspaceId, member.getUser().getId())))
 			.toList();
 	}
 

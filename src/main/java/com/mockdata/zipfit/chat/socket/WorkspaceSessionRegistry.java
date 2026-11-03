@@ -19,15 +19,23 @@ public class WorkspaceSessionRegistry {
 	private final SocketSessions socketSessions;
 	private final Map<Long, Set<WebSocketSession>> sessionsByWorkspace = new ConcurrentHashMap<>();
 
-	public void register(Long workspaceId, WebSocketSession session) {
-		sessionsByWorkspace.computeIfAbsent(workspaceId, id -> ConcurrentHashMap.newKeySet()).add(session);
+	/** 이 회원의 첫 연결이면(=다른 탭으로 이미 접속해 있지 않았으면) true를 돌려준다. */
+	public boolean register(Long workspaceId, WebSocketSession session) {
+		Long userId = SocketSessions.userId(session);
+		Set<WebSocketSession> sessions = sessionsByWorkspace.computeIfAbsent(workspaceId, id -> ConcurrentHashMap.newKeySet());
+		boolean alreadyOnline = sessions.stream().anyMatch(s -> Objects.equals(SocketSessions.userId(s), userId));
+		sessions.add(session);
+		return !alreadyOnline;
 	}
 
-	public void unregister(Long workspaceId, WebSocketSession session) {
+	/** 이 회원의 마지막 연결이 끊겼으면(=다른 탭으로도 더는 접속해 있지 않으면) true를 돌려준다. */
+	public boolean unregister(Long workspaceId, WebSocketSession session) {
+		Long userId = SocketSessions.userId(session);
 		sessionsByWorkspace.computeIfPresent(workspaceId, (id, sessions) -> {
 			sessions.removeIf(s -> s.getId().equals(session.getId()));
 			return sessions.isEmpty() ? null : sessions;
 		});
+		return userId != null && !isConnected(workspaceId, userId);
 	}
 
 	public void broadcast(Long workspaceId, WsMessage message) {
