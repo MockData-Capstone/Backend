@@ -16,11 +16,20 @@ oauth.google.client-id=
 oauth.google.client-secret=
 oauth.google.redirect-uri=http://localhost:5173/oauth/google/callback
 
-# DB: 로컬은 H2 인메모리 (서버를 끄면 데이터가 사라진다). PostgreSQL로 바꿀 때는 이 4줄을 지우면 된다.
+# DB는 아래 둘 중 하나만 켠다.
+# (1) H2 인메모리: 서버를 끄면 데이터가 사라진다. DB 없이 혼자 개발할 때.
 spring.datasource.url=jdbc:h2:mem:zipfit;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
 spring.datasource.username=sa
 spring.datasource.password=
 spring.datasource.driver-class-name=org.h2.Driver
+
+# (2) Neon(PostgreSQL): 팀이 같이 쓰는 DB. 위 4줄을 지우거나 주석 처리하고 아래를 채운다.
+# Neon 콘솔 > Connect 에서 받은 연결 문자열 postgresql://<user>:<password>@<host>/<db>?sslmode=require 를
+# 아래처럼 나눠 넣는다. host는 "-pooler"가 없는 직접 연결 주소를 쓴다(서버 하나라 연결 수가 적고, 풀러에서 생길 수 있는 문제를 피한다).
+#spring.datasource.url=jdbc:postgresql://<host>/<db>?sslmode=require
+#spring.datasource.username=<user>
+#spring.datasource.password=<password>
+#spring.datasource.driver-class-name=org.postgresql.Driver
 
 # 메일 (AUTH-07 비밀번호 재설정). 비워 두면 메일 대신 서버 로그에 재설정 링크가 찍힌다.
 # Gmail 예시: 구글 계정 > 보안 > 2단계 인증 > 앱 비밀번호 발급 후 사용
