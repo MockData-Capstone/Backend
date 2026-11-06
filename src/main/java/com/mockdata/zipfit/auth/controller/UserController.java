@@ -10,6 +10,7 @@ import com.mockdata.zipfit.auth.service.UserService;
 import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
 import com.mockdata.zipfit.common.security.CurrentUser;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class UserController {
 
 	private final UserService userService;
 	private final AccountLinkService accountLinkService;
+	private final RefreshTokenCookie refreshTokenCookie;
 
 	/** AUTH-04 내 정보 조회 */
 	@GetMapping("/me")
@@ -78,7 +80,8 @@ public class UserController {
 	/** AUTH-06 회원 탈퇴 */
 	@DeleteMapping("/me")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void withdraw(@CurrentUser Long userId) {
+	public void withdraw(@CurrentUser Long userId, HttpServletResponse response) {
 		userService.withdraw(userId);
+		refreshTokenCookie.clear(response);
 	}
 }

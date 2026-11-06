@@ -72,6 +72,8 @@ public class SecurityConfig {
 		configuration.setAllowedOrigins(allowedOrigins);
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
+		// 재발급 토큰 쿠키를 주고받으려면 필요하다. 프론트는 axios에 withCredentials: true를 켠다.
+		configuration.setAllowCredentials(true);
 		configuration.setMaxAge(3600L);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
