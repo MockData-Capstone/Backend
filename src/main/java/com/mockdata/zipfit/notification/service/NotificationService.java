@@ -59,8 +59,10 @@ public class NotificationService {
 			return new NotificationDtos.NotificationPage(List.of(), null, false, 0);
 		}
 		Cursor at = Cursor.parse(cursor);
-		List<Notification> rows = notificationRepository.findPage(userId, workspaceIds, since(), unreadOnly,
-			at == null ? null : at.updatedAt(), at == null ? null : at.id(), PageRequest.ofSize(size + 1));
+		PageRequest limit = PageRequest.ofSize(size + 1);
+		List<Notification> rows = at == null
+			? notificationRepository.findFirstPage(userId, workspaceIds, since(), unreadOnly, limit)
+			: notificationRepository.findPageAfter(userId, workspaceIds, since(), unreadOnly, at.updatedAt(), at.id(), limit);
 		boolean hasNext = rows.size() > size;
 		List<Notification> page = hasNext ? rows.subList(0, size) : rows;
 		return new NotificationDtos.NotificationPage(

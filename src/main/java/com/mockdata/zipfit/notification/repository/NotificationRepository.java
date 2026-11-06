@@ -13,18 +13,33 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
+	/** 알림함 첫 페이지: 지금 멤버인 Workspace의, since 이후 갱신된 알림을 최신순으로. */
+	@Query("""
+		select n from Notification n
+		where n.userId = :userId and n.workspaceId in :workspaceIds and n.updatedAt >= :since
+		  and (:unreadOnly = false or n.read = false)
+		order by n.updatedAt desc, n.id desc
+		""")
+	List<Notification> findFirstPage(
+		Long userId,
+		Collection<Long> workspaceIds,
+		Instant since,
+		boolean unreadOnly,
+		Pageable pageable
+	);
+
 	/**
-	 * 알림함 한 페이지: 지금 멤버인 Workspace의, since 이후 갱신된 알림을 최신순으로.
-	 * 커서는 (updatedAt, id)이며 처음에는 cursorAt을 null로 넘긴다.
+	 * 알림함 다음 페이지: 커서 (updatedAt, id)보다 오래된 알림.
+	 * 첫 페이지와 나눈 이유: PostgreSQL은 ":cursorAt is null" 같은 null 파라미터의 타입을 정하지 못해 쿼리가 실패한다.
 	 */
 	@Query("""
 		select n from Notification n
 		where n.userId = :userId and n.workspaceId in :workspaceIds and n.updatedAt >= :since
 		  and (:unreadOnly = false or n.read = false)
-		  and (:cursorAt is null or n.updatedAt < :cursorAt or (n.updatedAt = :cursorAt and n.id < :cursorId))
+		  and (n.updatedAt < :cursorAt or (n.updatedAt = :cursorAt and n.id < :cursorId))
 		order by n.updatedAt desc, n.id desc
 		""")
-	List<Notification> findPage(
+	List<Notification> findPageAfter(
 		Long userId,
 		Collection<Long> workspaceIds,
 		Instant since,
