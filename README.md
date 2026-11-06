@@ -171,9 +171,9 @@ docker run -d --name zipfit-db \
   -e POSTGRES_PASSWORD=zipfit \
   -p 5432:5432 postgres:16
 
-# 3. 환경 변수 설정 (아래 '환경 변수' 섹션 참고)
-cp src/main/resources/application-local.properties.example \
-   src/main/resources/application-local.properties
+# 3. 비밀값 설정: Backend/.env 를 만들고 KEY=VALUE 로 적는다 (아래 '환경 변수' 섹션 참고)
+#    필요한 키 목록은 src/main/resources/application.properties 맨 위 주석에 있다.
+#    Neon 대신 H2로 혼자 돌릴 때: DB_URL=jdbc:h2:mem:zipfit;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1, DB_USERNAME=sa
 
 # 4. 실행
 ./gradlew bootRun
@@ -195,7 +195,7 @@ java -jar build/libs/*.jar
 ## 환경 변수
 
 > 🔐 **API 키는 절대 저장소에 커밋하지 않는다.**
-> `application-local.properties`, `.env` 는 반드시 `.gitignore`에 포함할 것.
+> 설정은 `application.properties` 하나에 있고, 비밀값만 `Backend/.env`(`.gitignore` 대상)에 둔다. 서버가 시작할 때 `.env`를 자동으로 읽는다.
 > 운영 환경에서는 환경 변수 또는 AWS Parameter Store / Secrets Manager 사용.
 
 | 변수 | 설명 | 예시 | 필수 |
