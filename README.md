@@ -286,6 +286,7 @@ src/main/java/com/mockdata/zipfit/
 
 **요청**
 - JSON 본문, 필드는 camelCase. 로그인이 필요한 API는 `Authorization: Bearer {accessToken}` 헤더를 붙인다.
+- 로그인 유지: 접근 토큰(30분)은 응답 본문으로 받아 메모리에 두고, 재발급 토큰(14일)은 httpOnly 쿠키(`refresh_token`, 경로 `/api/auth`)로만 주고받는다. 자바스크립트로는 읽을 수 없다. 프론트는 axios에 `withCredentials: true`를 켜고, 새로고침 직후 `POST /api/auth/token/refresh`(본문 없음)로 접근 토큰을 다시 받는다.
 - 수정(`PATCH`)은 보낸 필드만 바꾼다. 보내지 않은 필드는 그대로다.
 
 **응답**
@@ -333,7 +334,7 @@ src/main/java/com/mockdata/zipfit/
 | `POST` | `/api/auth/signup/social` | 소셜 최초 가입 (가입 토큰 + 개인정보 동의 + 닉네임) | AUTH-02 |
 | `POST` | `/api/auth/{kakao\|google}/link` | 소셜 로그인 중 같은 이메일 계정 연동 (linkToken + 비밀번호) | AUTH-08 |
 | `POST` | `/api/auth/login` | 자체 로그인 | AUTH-03 |
-| `POST` | `/api/auth/token/refresh`, `/api/auth/logout` | 토큰 재발급 / 로그아웃 | AUTH-09 |
+| `POST` | `/api/auth/token/refresh`, `/api/auth/logout` | 토큰 재발급 / 로그아웃 (재발급 토큰은 쿠키로 주고받음, 본문 없음) | AUTH-09 |
 | `POST` | `/api/auth/password-reset/request`, `/confirm` | 비밀번호 재설정 메일 요청 / 새 비밀번호 설정 | AUTH-07 |
 | `GET` | `/api/users/me` | 내 정보 조회 (`hasPassword` 포함) | AUTH-04 |
 | `PATCH` | `/api/users/me` | 내 정보 수정: `nickname`, `currentPassword` + `newPassword` 중 보낸 것만 | AUTH-05 |

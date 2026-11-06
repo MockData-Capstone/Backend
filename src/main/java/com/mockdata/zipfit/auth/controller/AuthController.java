@@ -6,7 +6,6 @@ import com.mockdata.zipfit.auth.dto.AvailabilityResponse;
 import com.mockdata.zipfit.auth.dto.LoginRequest;
 import com.mockdata.zipfit.auth.dto.PasswordResetConfirmRequest;
 import com.mockdata.zipfit.auth.dto.PasswordResetRequest;
-import com.mockdata.zipfit.auth.dto.RefreshTokenRequest;
 import com.mockdata.zipfit.auth.dto.SignupRequest;
 import com.mockdata.zipfit.auth.dto.SocialLoginRequest;
 import com.mockdata.zipfit.auth.dto.SocialLoginResponse;
@@ -20,11 +19,13 @@ import com.mockdata.zipfit.auth.service.PasswordService;
 import com.mockdata.zipfit.auth.service.TokenService;
 import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,12 +45,13 @@ public class AuthController {
 	private final AccountLinkService accountLinkService;
 	private final PasswordService passwordService;
 	private final TokenService tokenService;
+	private final RefreshTokenCookie refreshTokenCookie;
 
 	/** AUTH-01 자체 회원가입. 가입하면 바로 로그인되도록 토큰을 발급한다. */
 	@PostMapping("/signup")
 	@ResponseStatus(HttpStatus.CREATED)
-	public TokenResponse signup(@Valid @RequestBody SignupRequest request) {
-		return localAuthService.signup(request);
+	public TokenResponse signup(@Valid @RequestBody SignupRequest request, HttpServletResponse response) {
+		return withCookie(localAuthService.signup(request), response);
 	}
 
 	/** AUTH-01 이메일 중복 확인 */
@@ -60,8 +62,8 @@ public class AuthController {
 
 	/** AUTH-03 자체 로그인 */
 	@PostMapping("/login")
-	public TokenResponse login(@Valid @RequestBody LoginRequest request) {
-		return localAuthService.login(request);
+	public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
+		return withCookie(localAuthService.login(request), response);
 	}
 
 	/** AUTH-02 소셜 로그인 시작. 프론트는 받은 URL로 이동한다. provider = kakao | google */
@@ -72,21 +74,34 @@ public class AuthController {
 
 	/** AUTH-02 소셜 로그인. provider = kakao | google */
 	@PostMapping("/{provider:kakao|google}")
-	public SocialLoginResponse socialLogin(@PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
-		return authService.socialLogin(toProvider(provider), request.code());
+	public SocialLoginResponse socialLogin(
+		@PathVariable String provider,
+		@Valid @RequestBody SocialLoginRequest request,
+		HttpServletResponse response
+	) {
+		SocialLoginResponse result = authService.socialLogin(toProvider(provider), request.code());
+		if (result.tokens() != null) {
+			withCookie(result.tokens(), response);
+		}
+		return result;
 	}
 
 	/** AUTH-02 소셜 최초 가입 (개인정보 동의 + 닉네임 확정) */
 	@PostMapping("/signup/social")
 	@ResponseStatus(HttpStatus.CREATED)
-	public TokenResponse socialSignup(@Valid @RequestBody SocialSignupRequest request) {
-		return authService.socialSignup(request);
+	public TokenResponse socialSignup(@Valid @RequestBody SocialSignupRequest request, HttpServletResponse response) {
+		return withCookie(authService.socialSignup(request), response);
 	}
 
 	/** AUTH-08 소셜 로그인 중 연동: 409 ACCOUNT_LINK_REQUIRED 응답의 linkToken + 기존 계정 비밀번호 → 연동 후 로그인 */
 	@PostMapping("/{provider:kakao|google}/link")
-	public TokenResponse linkAccount(@PathVariable String provider, @Valid @RequestBody AccountLinkRequest request) {
-		return accountLinkService.linkWithToken(toProvider(provider), request.linkToken(), request.password());
+	public TokenResponse linkAccount(
+		@PathVariable String provider,
+		@Valid @RequestBody AccountLinkRequest request,
+		HttpServletResponse response
+	) {
+		return withCookie(accountLinkService.linkWithToken(toProvider(provider), request.linkToken(), request.password()),
+			response);
 	}
 
 	/** AUTH-07 비밀번호 재설정 메일 요청. 가입 여부와 상관없이 항상 204 */
@@ -103,17 +118,38 @@ public class AuthController {
 		passwordService.confirmReset(request.token(), request.newPassword());
 	}
 
-	/** AUTH-09 토큰 재발급. 재발급 토큰도 새로 바꿔 준다(rotation). */
+	/**
+	 * AUTH-09 토큰 재발급. 재발급 토큰은 쿠키로 받고, 새 재발급 토큰으로 바꿔 쿠키에 다시 담는다(rotation).
+	 * 새로고침 직후에도 이 API로 접근 토큰을 다시 받아 로그인을 이어 간다.
+	 */
 	@PostMapping("/token/refresh")
-	public TokenResponse reissue(@Valid @RequestBody RefreshTokenRequest request) {
-		return tokenService.reissue(request.refreshToken());
+	public TokenResponse reissue(
+		@CookieValue(name = RefreshTokenCookie.NAME, required = false) String refreshToken,
+		HttpServletResponse response
+	) {
+		if (refreshToken == null || refreshToken.isBlank()) {
+			throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+		}
+		return withCookie(tokenService.reissue(refreshToken), response);
 	}
 
-	/** AUTH-09 로그아웃 */
+	/** AUTH-09 로그아웃. 재발급 토큰을 폐기하고 쿠키를 지운다. 쿠키가 없어도 204다. */
 	@PostMapping("/logout")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void logout(@Valid @RequestBody RefreshTokenRequest request) {
-		tokenService.revoke(request.refreshToken());
+	public void logout(
+		@CookieValue(name = RefreshTokenCookie.NAME, required = false) String refreshToken,
+		HttpServletResponse response
+	) {
+		if (refreshToken != null && !refreshToken.isBlank()) {
+			tokenService.revoke(refreshToken);
+		}
+		refreshTokenCookie.clear(response);
+	}
+
+	/** 재발급 토큰은 응답 본문에 넣지 않고(TokenResponse에서 JSON 제외) httpOnly 쿠키로만 준다. */
+	private TokenResponse withCookie(TokenResponse tokens, HttpServletResponse response) {
+		refreshTokenCookie.write(response, tokens.refreshToken());
+		return tokens;
 	}
 
 	private OAuthProvider toProvider(String path) {

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +22,7 @@ import com.mockdata.zipfit.auth.repository.SocialAccountRepository;
 import com.mockdata.zipfit.auth.repository.UserRepository;
 import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +35,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -96,7 +100,8 @@ class AuthIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value("LOGIN"))
 			.andExpect(jsonPath("$.tokens.accessToken").exists())
-			.andExpect(jsonPath("$.tokens.refreshToken").exists());
+			.andExpect(jsonPath("$.tokens.refreshToken").doesNotExist())
+			.andExpect(cookie().exists("refresh_token"));
 	}
 
 	@Test
@@ -138,32 +143,37 @@ class AuthIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("재발급하면 재발급 토큰도 바뀌고 이전 토큰은 쓸 수 없다")
+	@DisplayName("쿠키로 재발급하면 새 접근 토큰을 주고 쿠키의 재발급 토큰도 바뀌며, 이전 토큰은 쓸 수 없다")
 	void reissueRotatesRefreshToken() throws Exception {
 		Tokens tokens = registerKakaoUser("500", null);
 
-		String reissued = mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(tokens.refreshToken())))
+		MvcResult reissued = refresh(tokens.refreshToken())
 			.andExpect(status().isOk())
-			.andReturn().getResponse().getContentAsString();
-		String newRefreshToken = JsonPath.read(reissued, "$.refreshToken");
+			.andExpect(jsonPath("$.accessToken").exists())
+			.andExpect(jsonPath("$.refreshToken").doesNotExist())
+			.andReturn();
+		String newRefreshToken = reissued.getResponse().getCookie("refresh_token").getValue();
 		assertThat(newRefreshToken).isNotEqualTo(tokens.refreshToken());
 
-		mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(tokens.refreshToken())))
+		refresh(tokens.refreshToken())
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_REFRESH_TOKEN.name()));
-		mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(newRefreshToken)))
-			.andExpect(status().isOk());
+		refresh(newRefreshToken).andExpect(status().isOk());
+		mockMvc.perform(post("/api/auth/token/refresh"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_REFRESH_TOKEN.name()));
 	}
 
 	@Test
-	@DisplayName("로그아웃하면 재발급 토큰이 폐기된다")
+	@DisplayName("로그아웃하면 재발급 토큰이 폐기되고 쿠키가 지워진다")
 	void logoutRevokesRefreshToken() throws Exception {
 		Tokens tokens = registerKakaoUser("500", null);
 
-		mockMvc.perform(json(post("/api/auth/logout"), refreshBody(tokens.refreshToken())))
-			.andExpect(status().isNoContent());
-		mockMvc.perform(json(post("/api/auth/token/refresh"), refreshBody(tokens.refreshToken())))
-			.andExpect(status().isUnauthorized());
+		mockMvc.perform(post("/api/auth/logout").cookie(new Cookie("refresh_token", tokens.refreshToken())))
+			.andExpect(status().isNoContent())
+			.andExpect(cookie().maxAge("refresh_token", 0));
+		refresh(tokens.refreshToken()).andExpect(status().isUnauthorized());
+		mockMvc.perform(post("/api/auth/logout")).andExpect(status().isNoContent());
 	}
 
 	@Test
@@ -232,18 +242,19 @@ class AuthIntegrationTest {
 	}
 
 	private Tokens signup(String signupToken, String nickname) throws Exception {
-		String body = mockMvc.perform(json(post("/api/auth/signup/social"), signupBody(signupToken, nickname, true)))
+		MvcResult result = mockMvc.perform(json(post("/api/auth/signup/social"), signupBody(signupToken, nickname, true)))
 			.andExpect(status().isCreated())
-			.andReturn().getResponse().getContentAsString();
-		return new Tokens(JsonPath.read(body, "$.accessToken"), JsonPath.read(body, "$.refreshToken"));
+			.andReturn();
+		return new Tokens(JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken"),
+			result.getResponse().getCookie("refresh_token").getValue());
 	}
 
 	private static String signupBody(String signupToken, String nickname, boolean privacyAgreed) {
 		return "{\"signupToken\":\"%s\",\"nickname\":\"%s\",\"privacyAgreed\":%s}".formatted(signupToken, nickname, privacyAgreed);
 	}
 
-	private static String refreshBody(String refreshToken) {
-		return "{\"refreshToken\":\"%s\"}".formatted(refreshToken);
+	private ResultActions refresh(String refreshToken) throws Exception {
+		return mockMvc.perform(post("/api/auth/token/refresh").cookie(new Cookie("refresh_token", refreshToken)));
 	}
 
 	private static MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder builder, String body) {

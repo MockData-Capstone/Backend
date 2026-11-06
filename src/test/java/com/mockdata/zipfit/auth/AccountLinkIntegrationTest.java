@@ -37,10 +37,9 @@ class AccountLinkIntegrationTest extends AuthTestSupport {
 			.andExpect(jsonPath("$.code").value(ErrorCode.INVALID_PASSWORD.name()));
 		assertThat(socialAccountRepository.count()).isZero();
 
-		String linked = linkWithToken("kakao", linkToken, "password1")
+		Tokens tokens = tokens(linkWithToken("kakao", linkToken, "password1")
 			.andExpect(status().isOk())
-			.andReturn().getResponse().getContentAsString();
-		Tokens tokens = tokens(linked, "$");
+			.andReturn());
 
 		mockMvc.perform(bearer(get("/api/users/me"), tokens.accessToken()))
 			.andExpect(jsonPath("$.nickname").value("자체회원"))

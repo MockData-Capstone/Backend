@@ -2,7 +2,10 @@ package com.mockdata.zipfit.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,12 +46,16 @@ class LocalAuthIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("자체 가입하면 토큰이 발급되고 비밀번호는 해시로 저장된다")
+	@DisplayName("자체 가입하면 토큰이 발급되고(재발급 토큰은 httpOnly 쿠키로만) 비밀번호는 해시로 저장된다")
 	void signup() throws Exception {
 		String body = signup("Test@Zipfit.com", "password1", "집구하는중", true)
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.accessToken").exists())
-			.andExpect(jsonPath("$.refreshToken").exists())
+			.andExpect(jsonPath("$.refreshToken").doesNotExist())
+			.andExpect(cookie().exists("refresh_token"))
+			.andExpect(cookie().httpOnly("refresh_token", true))
+			.andExpect(cookie().path("refresh_token", "/api/auth"))
+			.andExpect(cookie().sameSite("refresh_token", "Lax"))
 			.andReturn().getResponse().getContentAsString();
 
 		mockMvc.perform(get("/api/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + JsonPath.read(body, "$.accessToken")))
@@ -114,6 +121,17 @@ class LocalAuthIntegrationTest {
 		mockMvc.perform(get("/api/auth/email-availability"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("email"));
+	}
+
+	@Test
+	@DisplayName("프론트 주소의 요청은 쿠키를 함께 보낼 수 있다 (CORS credentials)")
+	void corsAllowsCredentials() throws Exception {
+		mockMvc.perform(options("/api/auth/token/refresh")
+				.header(HttpHeaders.ORIGIN, "http://localhost:5173")
+				.header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
+			.andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
 	}
 
 	@Test
