@@ -200,8 +200,8 @@ java -jar build/libs/*.jar
 | `TEST_DB_USERNAME` | `postgres` |
 | `TEST_DB_PASSWORD` | `postgres` |
 
-- 로컬: 내 PostgreSQL에 빈 DB `zipfit_test`를 만들거나, Neon에서 **테스트용 브랜치**를 따로 만들어 그 주소를 `TEST_DB_URL`에 넣는다. 테스트가 테이블을 비우므로 여러 사람이 같은 테스트 DB를 동시에 쓰지 않는다.
-- CI(GitHub Actions): 작업마다 PostgreSQL 컨테이너를 새로 띄워 기본값으로 접속한다. 시크릿이 필요 없다.
+- CI(GitHub Actions): PR과 `develop`·`main` 푸시마다 PostgreSQL 컨테이너를 새로 띄워 전체 테스트를 돌린다. 설정할 것이 없다.
+- 로컬(선택): `TEST_DB_URL`이 없으면 테스트를 건너뛴다(경고만 나오고 빌드는 통과). 로컬에서도 돌리려면 내 PostgreSQL에 빈 DB `zipfit_test`를 만들거나, Neon에서 **테스트용 브랜치**를 따로 만들어 그 주소를 `TEST_DB_URL`에 넣는다. 테스트가 테이블을 비우므로 여러 사람이 같은 테스트 DB를 동시에 쓰지 않는다.
 
 ---
 
