@@ -11,7 +11,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -50,8 +49,11 @@ public class Analysis {
 	@Column(length = 20)
 	private AnalysisFailure failure;
 
-	/** 추출 조건(ExtractedConditions) JSON */
-	@Lob
+	/**
+	 * 추출 조건(ExtractedConditions) JSON.
+	 * PostgreSQL에서 @Lob String은 large object(oid)가 되어 트랜잭션 밖에서 읽지 못하므로 text로 둔다.
+	 */
+	@Column(columnDefinition = "text")
 	private String conditionsJson;
 
 	@CreationTimestamp
