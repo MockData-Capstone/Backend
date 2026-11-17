@@ -1,6 +1,7 @@
 package com.mockdata.zipfit.minigame.service;
 
 import com.mockdata.zipfit.chat.socket.WorkspaceSessionRegistry;
+import com.mockdata.zipfit.minigame.entity.GameEnums.GameType;
 import com.mockdata.zipfit.minigame.entity.MiniGame;
 import java.time.Duration;
 import java.time.Instant;
@@ -15,7 +16,8 @@ import org.springframework.stereotype.Component;
  * 진행 중인 게임을 주기적으로 확인한다 (GAME-02).
  * <ul>
  *   <li>가위바위보 라운드 마감이 지나면 내지 않은 참가자 대신 무작위로 고른다.</li>
- *   <li>Workspace 소켓 연결이 끊긴 채 유예 시간이 지난 참가자는 결과에서 뺀다. 새로고침 같은 짧은 끊김은 봐준다.</li>
+ *   <li>가위바위보에서 Workspace 소켓 연결이 끊긴 채 유예 시간이 지난 참가자는 결과에서 뺀다. 새로고침 같은 짧은 끊김은 봐준다.
+ *       룰렛은 접속하지 않은 멤버도 추첨 대상이므로 빼지 않는다.</li>
  * </ul>
  */
 @Slf4j
@@ -57,6 +59,9 @@ public class MiniGameScheduler {
 	}
 
 	private void removeDisconnected(MiniGame game, Instant now) {
+		if (game.getType() != GameType.ROCK_PAPER_SCISSORS) {
+			return;
+		}
 		Long workspaceId = game.getWorkspace().getId();
 		for (Long userId : gameService.findPlayingUserIds(game.getId())) {
 			String key = game.getId() + ":" + userId;
