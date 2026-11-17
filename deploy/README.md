@@ -8,17 +8,28 @@ EC2 한 대에서 Docker로 세 가지를 함께 띄운다.
 | `caddy` | HTTPS 인증서 자동 발급·갱신, 요청·WebSocket을 백엔드로 전달 |
 | `coturn` | TURN 서버. 이동통신망처럼 P2P가 막힌 환경에서 WebRTC 영상을 중계한다 |
 
-DB는 Neon을 그대로 쓴다. EC2를 Neon과 같은 **싱가포르(ap-southeast-1)** 에 두어 쿼리 지연을 줄인다.
+AWS 프로젝트(새로운 AWS 경험)는 리소스를 **아시아 태평양(시드니) ap-southeast-2** 한 곳에만 만들 수 있다.
+그래서 배포 서버용 DB도 Neon **시드니**에 따로 만들어 서버 바로 옆에 둔다. 팀 개발용 Neon(싱가포르)은 그대로 쓴다.
 
 ---
 
+## 0. 배포용 DB 만들기 (Neon)
+
+1. Neon 콘솔 → **New Project** → Region: **AWS Asia Pacific 2 (Sydney)** → 이름 예: `zipfit-prod`
+2. 만들어진 프로젝트의 **Connect**에서 연결 문자열 `postgresql://<user>:<password>@<host>/<db>?sslmode=require...` 를 확인한다.
+3. 아래 4단계에서 `deploy/.env`에 이렇게 옮긴다 (풀러 주소 `-pooler`가 붙은 host를 쓴다).
+   - `DB_URL=jdbc:postgresql://<host>/<db>?sslmode=require&channelBinding=require`
+   - `DB_USERNAME=<user>`, `DB_PASSWORD=<password>`
+
+테이블은 서버가 처음 뜰 때 만들어진다.
+
 ## 1. EC2 만들기 (AWS 콘솔)
 
-1. 콘솔 오른쪽 위에서 리전을 **아시아 태평양(싱가포르) ap-southeast-1** 로 바꾼다.
+1. 콘솔 오른쪽 위 리전이 **아시아 태평양(시드니) ap-southeast-2** 인지 확인한다. 다른 리전에서는 만들 수 없다.
 2. **EC2 → 인스턴스 시작**
    - 이름: `zipfit`
    - AMI: **Ubuntu Server 24.04 LTS**
-   - 인스턴스 유형: **t3.small** (메모리 2GB). 목록에 "프리 티어 사용 가능"이 붙은 유형만 쓸 수 있다.
+   - 인스턴스 유형: **t3.small** (메모리 2GB). 무료 플랜에서는 "프리 티어 사용 가능"이 붙은 유형만 쓸 수 있다 (t3.small은 해당).
    - 키 페어: **새 키 페어 생성** → 이름 `zipfit`, RSA, `.pem` → 내려받은 파일을 잘 보관한다 (다시 받을 수 없다)
    - 스토리지: **20 GiB, gp3**
    - 네트워크 설정 → **편집** → 보안 그룹 규칙을 아래처럼 만든다
@@ -107,6 +118,6 @@ docker compose restart app        # 백엔드만 다시 시작
 
 ## 참고
 
-- **비용**: AWS 무료 플랜 크레딧으로 쓴다. 무료 플랜에서는 요금이 청구되지 않고, 6개월이 지나거나 크레딧을 다 쓰면 끝난다. 남은 크레딧은 콘솔 **Billing → Credits** 에서 본다.
+- **비용**: AWS 무료 플랜 크레딧으로 쓴다. 무료 플랜에서는 요금이 청구되지 않고, 6개월이 지나거나 크레딧을 다 쓰면 끝난다. 남은 크레딧과 만료일은 **AWS Settings → Billing** 에서 보거나 `aws freetier get-account-plan-state` 로 확인한다.
 - **SSH가 안 될 때**: 보안 그룹의 SSH는 "내 IP"만 허용한다. 학교·집처럼 접속 장소가 바뀌면 보안 그룹에서 SSH 규칙의 소스를 다시 **내 IP**로 고친다.
 - **프론트를 배포하면**: `deploy/.env`의 `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `KAKAO_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`를 프론트 주소로 바꾸고, 카카오 디벨로퍼스(Redirect URI, 플랫폼 Web 도메인)에도 같은 주소를 등록한다.
