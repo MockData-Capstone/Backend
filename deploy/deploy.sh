@@ -19,8 +19,14 @@ git pull --ff-only origin "$BRANCH"
 export TURN_PUBLIC_IP="$(curl -fsS https://checkip.amazonaws.com)"
 export TURN_PRIVATE_IP="$(hostname -I | awk '{print $1}')"
 
-echo "==> 빌드·실행"
-docker compose up -d --build
+echo "==> 빌드"
+docker compose build app
+
+# compose는 새 이미지를 빌드해도 실행 중인 app 컨테이너를 바꾸지 않을 때가 있어(v5.7.1에서 확인),
+# app은 매번 새 이미지로 다시 띄운다 (15~20초 동안 API가 멈춘다). caddy·coturn은 설정이 바뀔 때만 다시 띄운다.
+echo "==> 실행"
+docker compose up -d --force-recreate --no-deps app
+docker compose up -d
 docker image prune -f >/dev/null
 
 docker compose ps
