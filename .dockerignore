@@ -1,0 +1,12 @@
+.git
+.gradle
+.kotlin
+.idea
+.vscode
+bin
+build
+out
+uploads
+deploy
+.env
+*.md
