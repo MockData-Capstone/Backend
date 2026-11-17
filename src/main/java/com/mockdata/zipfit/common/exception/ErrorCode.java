@@ -84,7 +84,7 @@ public enum ErrorCode {
 	// GAME 미니게임
 	GAME_IN_PROGRESS(HttpStatus.CONFLICT, "진행 중인 미니게임이 있습니다."),
 	NOT_ENOUGH_PLAYERS(HttpStatus.BAD_REQUEST, "참여 멤버를 2명 이상 골라주세요."),
-	PLAYER_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "지금 접속 중인 멤버만 참여할 수 있습니다."),
+	PLAYER_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "참여할 수 없는 멤버가 있습니다. 가위바위보는 지금 접속 중인 멤버만 참여할 수 있습니다."),
 	VISITOR_RULE_REQUIRED(HttpStatus.BAD_REQUEST, "가위바위보는 방문자 기준(승자/패자)을 골라주세요."),
 	GAME_NOT_FOUND(HttpStatus.NOT_FOUND, "미니게임을 찾을 수 없습니다."),
 	GAME_NOT_IN_PROGRESS(HttpStatus.CONFLICT, "이미 끝났거나 중단된 게임입니다."),

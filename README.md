@@ -190,6 +190,19 @@ docker run -d --name zipfit-db \
 java -jar build/libs/*.jar
 ```
 
+테스트는 Neon과 같은 **PostgreSQL**에서 돈다. 설정은 `application.properties`를 그대로 쓰고, DB만 테스트 전용 DB로 바꾼다(`build.gradle`의 `test` 태스크).
+
+> ⚠️ 테스트는 끝날 때마다 **모든 테이블을 비운다**(`AuthTestSupport.cleanUp()`). 운영 Neon(`DB_URL`)으로 돌리면 데이터가 지워지므로, `TEST_DB_URL`이 `DB_URL`과 같으면 빌드가 멈춘다.
+
+| 변수 (`.env` 또는 환경 변수) | 기본값 |
+|---|---|
+| `TEST_DB_URL` | `jdbc:postgresql://localhost:5432/zipfit_test` |
+| `TEST_DB_USERNAME` | `postgres` |
+| `TEST_DB_PASSWORD` | `postgres` |
+
+- CI(GitHub Actions): PR과 `develop`·`main` 푸시마다 PostgreSQL 컨테이너를 새로 띄워 전체 테스트를 돌린다. 설정할 것이 없다.
+- 로컬(선택): `TEST_DB_URL`이 없으면 테스트를 건너뛴다(경고만 나오고 빌드는 통과). 로컬에서도 돌리려면 내 PostgreSQL에 빈 DB `zipfit_test`를 만들거나, Neon에서 **테스트용 브랜치**를 따로 만들어 그 주소를 `TEST_DB_URL`에 넣는다. 테스트가 테이블을 비우므로 여러 사람이 같은 테스트 DB를 동시에 쓰지 않는다.
+
 ---
 
 ## 환경 변수

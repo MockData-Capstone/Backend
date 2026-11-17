@@ -27,6 +27,7 @@ import com.mockdata.zipfit.workspace.service.WorkspaceAccess;
 import com.mockdata.zipfit.workspace.service.WorkspaceEventTypes;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -77,7 +78,10 @@ public class MiniGameService {
 		this.roundTimeout = roundTimeout;
 	}
 
-	/** GAME-01 참여 멤버는 지금 접속 중인 멤버 중 2명 이상이다. 진행 중인 게임이 있으면 시작할 수 없다(제안). */
+	/**
+	 * GAME-01 참여 멤버는 그룹 멤버 2명 이상이다. 가위바위보는 라운드마다 직접 내야 하므로 지금 접속 중인 멤버만,
+	 * 룰렛은 서버가 추첨하므로 접속하지 않은 멤버도 넣을 수 있다. 진행 중인 게임이 있으면 시작할 수 없다(제안).
+	 */
 	@Transactional
 	public GameResponse start(Long workspaceId, Long userId, StartGameRequest request) {
 		WorkspaceMember starter = workspaceAccess.requireMember(workspaceId, userId);
@@ -91,8 +95,10 @@ public class MiniGameService {
 		Map<Long, WorkspaceMember> members = memberRepository.findAllByWorkspaceIdOrderByCreatedAtAscIdAsc(workspaceId)
 			.stream()
 			.collect(Collectors.toMap(m -> m.getUser().getId(), Function.identity()));
+		boolean needsConnection = request.type() == GameType.ROCK_PAPER_SCISSORS;
 		for (Long playerId : playerIds) {
-			if (!members.containsKey(playerId) || !sessionRegistry.isConnected(workspaceId, playerId)) {
+			if (!members.containsKey(playerId)
+				|| (needsConnection && !sessionRegistry.isConnected(workspaceId, playerId))) {
 				throw new BusinessException(ErrorCode.PLAYER_NOT_AVAILABLE);
 			}
 		}
@@ -349,9 +355,10 @@ public class MiniGameService {
 			.collect(Collectors.toSet());
 	}
 
+	/** 참가 순서(ID 순)를 유지한다. 응답의 participants 순서가 이 순서를 따른다. */
 	private Map<Long, MiniGameParticipant> participantsById(MiniGame game) {
 		return participantRepository.findAllByGameIdOrderByIdAsc(game.getId()).stream()
-			.collect(Collectors.toMap(MiniGameParticipant::getUserId, Function.identity()));
+			.collect(Collectors.toMap(MiniGameParticipant::getUserId, Function.identity(), (a, b) -> a, LinkedHashMap::new));
 	}
 
 	private void publish(MiniGame game, String type, Object data) {

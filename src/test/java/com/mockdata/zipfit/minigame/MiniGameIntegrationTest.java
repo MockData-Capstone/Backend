@@ -97,7 +97,7 @@ class MiniGameIntegrationTest extends ScenarioTestSupport {
 	}
 
 	@Test
-	@DisplayName("참여 멤버가 2명 미만이거나 접속 중이 아니거나, 진행 중인 게임이 있으면 시작할 수 없다")
+	@DisplayName("참여 멤버가 2명 미만이거나 그룹 멤버가 아니거나, 가위바위보에 접속 중이 아닌 멤버가 있거나, 진행 중인 게임이 있으면 시작할 수 없다")
 	void startRejected() throws Exception {
 		start(host, "ROCK_PAPER_SCISSORS", List.of(hostId, guestId), null)
 			.andExpect(status().isBadRequest())
@@ -108,7 +108,7 @@ class MiniGameIntegrationTest extends ScenarioTestSupport {
 		start(host, "ROULETTE", List.of(hostId, userIdOf("out@zipfit.com")), null)
 			.andExpect(jsonPath("$.code").value(ErrorCode.PLAYER_NOT_AVAILABLE.name()));
 		doReturn(false).when(sessionRegistry).isConnected(workspaceId, guestId);
-		start(host, "ROULETTE", List.of(hostId, guestId), null)
+		start(host, "ROCK_PAPER_SCISSORS", List.of(hostId, guestId), "LOSER")
 			.andExpect(jsonPath("$.code").value(ErrorCode.PLAYER_NOT_AVAILABLE.name()));
 
 		start(host, "ROULETTE", List.of(hostId, thirdId), null).andExpect(status().isCreated());
@@ -116,6 +116,32 @@ class MiniGameIntegrationTest extends ScenarioTestSupport {
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value(ErrorCode.GAME_IN_PROGRESS.name()));
 		start(outsider, "ROULETTE", List.of(hostId, thirdId), null).andExpect(status().isForbidden());
+	}
+
+	@Test
+	@DisplayName("룰렛은 접속하지 않은 멤버도 참여시키고, 연결이 끊긴 채 유예 시간이 지나도 추첨 대상에서 빼지 않는다")
+	void rouletteWithOfflineMembers() throws Exception {
+		doReturn(false).when(sessionRegistry).isConnected(eq(workspaceId), eq(guestId));
+		doReturn(false).when(sessionRegistry).isConnected(eq(workspaceId), eq(thirdId));
+		Long gameId = gameIdOf(start(host, "ROULETTE", List.of(hostId, guestId, thirdId), null)
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.participants.length()").value(3))
+			.andReturn().getResponse().getContentAsString());
+
+		Instant now = Instant.now();
+		scheduler.check(now);
+		scheduler.check(now.plusSeconds(11));
+		mockMvc.perform(bearer(get("/api/minigames/" + gameId), host))
+			.andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+			.andExpect(jsonPath("$.participants[0].status").value("PLAYING"))
+			.andExpect(jsonPath("$.participants[1].status").value("PLAYING"))
+			.andExpect(jsonPath("$.participants[2].status").value("PLAYING"));
+
+		String finished = mockMvc.perform(bearer(post("/api/minigames/%d/draw".formatted(gameId)), host))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("FINISHED"))
+			.andReturn().getResponse().getContentAsString();
+		assertThat(JsonPath.<Integer>read(finished, "$.visitor.userId").longValue()).isIn(hostId, guestId, thirdId);
 	}
 
 	@Test
@@ -196,7 +222,7 @@ class MiniGameIntegrationTest extends ScenarioTestSupport {
 	}
 
 	@Test
-	@DisplayName("참가자가 나가 2명 미만이 되면 자동으로 중단하고, 연결이 끊긴 채 유예 시간이 지나면 결과에서 뺀다")
+	@DisplayName("참가자가 나가 2명 미만이 되면 자동으로 중단하고, 가위바위보는 연결이 끊긴 채 유예 시간이 지나면 결과에서 뺀다")
 	void playersDropOut() throws Exception {
 		Long first = gameIdOf(start(host, "ROULETTE", List.of(hostId, guestId), null)
 			.andReturn().getResponse().getContentAsString());
@@ -209,17 +235,22 @@ class MiniGameIntegrationTest extends ScenarioTestSupport {
 		assertThat(eventTypes()).contains(GameEvents.GAME_PLAYER_LEFT, GameEvents.GAME_ABORTED);
 
 		String fourth = joinMember(host, workspaceId, "fourth@zipfit.com", "넷째");
-		Long second = gameIdOf(start(host, "ROULETTE", List.of(hostId, thirdId, userIdOf("fourth@zipfit.com")), null)
+		Long fourthId = userIdOf("fourth@zipfit.com");
+		Long second = gameIdOf(start(host, "ROCK_PAPER_SCISSORS", List.of(hostId, thirdId, fourthId), "LOSER")
 			.andReturn().getResponse().getContentAsString());
+		choose(host, second, 1, "ROCK").andExpect(status().isOk());
+		choose(fourth, second, 1, "SCISSORS").andExpect(status().isOk());
 		doReturn(false).when(sessionRegistry).isConnected(eq(workspaceId), eq(thirdId));
 		Instant now = Instant.now();
 		scheduler.check(now);
 		mockMvc.perform(bearer(get("/api/minigames/" + second), fourth))
 			.andExpect(jsonPath("$.participants[1].status").value("PLAYING"));
+		// 끊긴 셋째를 빼면 남은 둘이 모두 냈으므로 바로 판정한다: 가위를 낸 넷째가 져서 방문자가 된다.
 		scheduler.check(now.plusSeconds(11));
 		mockMvc.perform(bearer(get("/api/minigames/" + second), fourth))
-			.andExpect(jsonPath("$.status").value("IN_PROGRESS"))
-			.andExpect(jsonPath("$.participants[1].status").value("LEFT"));
+			.andExpect(jsonPath("$.participants[1].status").value("LEFT"))
+			.andExpect(jsonPath("$.status").value("FINISHED"))
+			.andExpect(jsonPath("$.visitor.userId").value(fourthId));
 	}
 
 	private ResultActions start(String token, String type, List<Long> participants, String visitorRule) throws Exception {
