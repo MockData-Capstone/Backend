@@ -23,29 +23,18 @@ AWS 프로젝트(새로운 AWS 경험)는 리소스를 **아시아 태평양(시
 
 테이블은 서버가 처음 뜰 때 만들어진다.
 
-## 1. EC2 만들기 (AWS 콘솔)
+## 1. EC2 (만들어 둠, 2026-11-17)
 
-1. 콘솔 오른쪽 위 리전이 **아시아 태평양(시드니) ap-southeast-2** 인지 확인한다. 다른 리전에서는 만들 수 없다.
-2. **EC2 → 인스턴스 시작**
-   - 이름: `zipfit`
-   - AMI: **Ubuntu Server 24.04 LTS**
-   - 인스턴스 유형: **t3.small** (메모리 2GB). 무료 플랜에서는 "프리 티어 사용 가능"이 붙은 유형만 쓸 수 있다 (t3.small은 해당).
-   - 키 페어: **새 키 페어 생성** → 이름 `zipfit`, RSA, `.pem` → 내려받은 파일을 잘 보관한다 (다시 받을 수 없다)
-   - 스토리지: **20 GiB, gp3**
-   - 네트워크 설정 → **편집** → 보안 그룹 규칙을 아래처럼 만든다
+| 리소스 | 값 |
+|---|---|
+| 인스턴스 | `zipfit-backend` (`i-01e92d28d3eb4c3d9`), t4g.small (ARM, 2GB), Ubuntu 24.04, gp3 20GB 암호화 |
+| 탄력적 IP | **`16.178.202.175`** (서버를 껐다 켜도 바뀌지 않는다) |
+| 보안 그룹 | `zipfit-backend-sg` — TCP 80·443, TCP·UDP 3478, UDP 49160-49200. **SSH(22)는 열지 않는다** |
+| IAM 역할 | `zipfit-backend-role` — `AmazonSSMManagedInstanceCore`만 (Session Manager 접속용) |
+| 기타 | IMDSv2만 허용, 종료 보호 켬, CPU 크레딧 standard (추가 요금 없음) |
 
-     | 유형 | 프로토콜 | 포트 | 소스 | 용도 |
-     |---|---|---|---|---|
-     | SSH | TCP | 22 | **내 IP** | 서버 접속 |
-     | HTTP | TCP | 80 | 0.0.0.0/0 | 인증서 발급, https로 넘기기 |
-     | HTTPS | TCP | 443 | 0.0.0.0/0 | API·WebSocket |
-     | 사용자 지정 UDP | UDP | 443 | 0.0.0.0/0 | HTTP/3 (선택) |
-     | 사용자 지정 TCP | TCP | 3478 | 0.0.0.0/0 | TURN |
-     | 사용자 지정 UDP | UDP | 3478 | 0.0.0.0/0 | TURN |
-     | 사용자 지정 UDP | UDP | 49160-49200 | 0.0.0.0/0 | TURN 중계 |
-3. **탄력적 IP** (서버를 껐다 켜도 IP가 바뀌지 않게)
-   - EC2 → 네트워크 및 보안 → **탄력적 IP → 탄력적 IP 주소 할당 → 할당**
-   - 할당된 IP 선택 → **작업 → 탄력적 IP 주소 연결** → 인스턴스 `zipfit` 선택
+첫 부팅 때 Docker 설치, 스왑 2GB, 저장소(`~/Backend`) 받기가 자동으로 끝났다 (`deploy/setup.sh`와 같은 일).
+서버를 새로 만들 때만 `deploy/setup.sh`를 직접 실행한다.
 
 ## 2. 도메인 연결 (DuckDNS, 무료)
 
@@ -53,30 +42,43 @@ HTTPS 인증서를 받으려면 도메인이 필요하다.
 
 1. https://www.duckdns.org 에 GitHub 계정으로 로그인
 2. sub domain에 이름(예: `zipfit`)을 넣고 **add domain** → `zipfit.duckdns.org`
-3. 그 줄의 **current ip**에 탄력적 IP를 넣고 **update ip**
+3. 그 줄의 **current ip**에 탄력적 IP `16.178.202.175`를 넣고 **update ip**
 
-## 3. 서버 접속 (Windows PowerShell)
+## 3. 서버 접속 (SSH over Session Manager)
 
-```powershell
-# 처음 한 번: 키 파일을 나만 읽을 수 있게 한다 (안 하면 ssh가 키를 거부한다)
-icacls "$HOME\Downloads\zipfit.pem" /inheritance:r /grant:r "$($env:USERNAME):(R)"
+22번 포트를 열지 않고, SSH를 AWS Session Manager 통로로 보낸다. `ssh`·`scp`·VS Code Remote-SSH가 그대로 된다.
 
-ssh -i "$HOME\Downloads\zipfit.pem" ubuntu@<탄력적 IP>
-```
+**브라우저에서 바로 (설치 없음)**: AWS 콘솔 → EC2 → `zipfit-backend` → **연결 → Session Manager → 연결**.
+`ssm-user`로 들어가므로 먼저 `sudo -iu ubuntu` 를 입력한다.
 
-## 4. 처음 설치 (서버에서)
+**내 PC에서 `ssh zipfit` (처음 한 번 설정)**
+
+1. AWS CLI 로그인: `aws login --profile zipfit` (12시간마다 자동 갱신, 90일마다 다시 로그인)
+2. Session Manager 플러그인 설치 (관리자 권한):
+   https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe
+3. 내 PC 전용 키를 만들고, 공개키를 서버의 `~/.ssh/authorized_keys`에 추가한다 (이미 접속되는 사람이 브라우저 터미널이나 `ssh zipfit`으로 넣어 준다).
+   ```powershell
+   ssh-keygen -t ed25519 -f "$HOME\.ssh\zipfit_ed25519" -C "zipfit-backend ($env:USERNAME)"
+   Get-Content "$HOME\.ssh\zipfit_ed25519.pub"   # 이 한 줄을 서버에 추가한다
+   ```
+4. `~/.ssh/config`에 추가한다 (경로는 내 PC에 맞게):
+   ```
+   Host zipfit
+       HostName i-01e92d28d3eb4c3d9
+       User ubuntu
+       IdentityFile ~/.ssh/zipfit_ed25519
+       IdentitiesOnly yes
+       ServerAliveInterval 30
+       ProxyCommand C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "$env:Path = 'C:\Program Files\Amazon\SessionManagerPlugin\bin;' + $env:Path; & 'C:\Users\<내 계정>\AppData\Local\Programs\Amazon\AWSCLIV2\aws.exe' ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p --region ap-southeast-2 --profile zipfit"
+   ```
+5. 접속: `ssh zipfit` (VS Code: Remote-SSH → `zipfit`)
+
+팀원이 접속하려면 AWS Settings에서 프로젝트 **팀 멤버**로 초대받아 1번부터 진행한다.
+
+## 4. 설정 파일 만들기 (서버에서)
 
 ```bash
-git clone https://github.com/MockData-Capstone/Backend.git
-cd Backend
-bash deploy/setup.sh      # Docker 설치, 스왑 2GB 추가
-exit                      # 로그아웃 후 다시 ssh로 접속한다 (docker 그룹 적용)
-```
-
-다시 접속한 뒤 설정 파일을 만든다.
-
-```bash
-cd Backend
+cd ~/Backend
 cp deploy/.env.example deploy/.env
 chmod 600 deploy/.env
 openssl rand -hex 32      # TURN_SECRET에 넣을 값
@@ -119,5 +121,6 @@ docker compose restart app        # 백엔드만 다시 시작
 ## 참고
 
 - **비용**: AWS 무료 플랜 크레딧으로 쓴다. 무료 플랜에서는 요금이 청구되지 않고, 6개월이 지나거나 크레딧을 다 쓰면 끝난다. 남은 크레딧과 만료일은 **AWS Settings → Billing** 에서 보거나 `aws freetier get-account-plan-state` 로 확인한다.
-- **SSH가 안 될 때**: 보안 그룹의 SSH는 "내 IP"만 허용한다. 학교·집처럼 접속 장소가 바뀌면 보안 그룹에서 SSH 규칙의 소스를 다시 **내 IP**로 고친다.
+- **`ssh zipfit`이 안 될 때**: ① `aws sts get-caller-identity --profile zipfit` 이 실패하면 `aws login --profile zipfit` 으로 다시 로그인한다. ② `SessionManagerPlugin is not found` 가 나오면 플러그인을 설치했는지 확인하고 VS Code·터미널을 다시 연다. ③ `Permission denied (publickey)` 면 내 공개키가 서버 `~/.ssh/authorized_keys` 에 있는지 확인한다. 접속 장소(IP)가 바뀌는 것은 상관없다.
+- **서버 비용 아끼기**: 쓰지 않을 때 `aws ec2 stop-instances --instance-ids i-01e92d28d3eb4c3d9 --region ap-southeast-2 --profile zipfit` 로 끌 수 있다 (켜기: `start-instances`). 꺼 둬도 탄력적 IP와 디스크 비용은 나온다.
 - **프론트를 배포하면**: `deploy/.env`의 `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `KAKAO_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`를 프론트 주소로 바꾸고, 카카오 디벨로퍼스(Redirect URI, 플랫폼 Web 도메인)에도 같은 주소를 등록한다.
