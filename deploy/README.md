@@ -1,12 +1,14 @@
 # AWS EC2 배포
 
-EC2 한 대에서 Docker로 세 가지를 함께 띄운다.
+EC2 한 대에서 Docker로 세 가지를 함께 띄우고, 프론트와 백엔드를 **같은 주소** `https://zipfit.duckdns.org` 로 서비스한다.
 
 | 컨테이너 | 역할 |
 |---|---|
 | `app` | 백엔드 (Spring Boot) |
-| `caddy` | HTTPS 인증서 자동 발급·갱신, 요청·WebSocket을 백엔드로 전달 |
+| `caddy` | HTTPS 인증서 자동 발급·갱신. `/api`·`/ws`·`/uploads`는 백엔드로, 나머지는 프론트 빌드(`~/frontend/current`)로 |
 | `coturn` | TURN 서버. 이동통신망처럼 P2P가 막힌 환경에서 WebRTC 영상을 중계한다 |
+
+프론트는 Frontend 저장소 `develop`에 CI를 통과한 커밋이 올라오면 서버가 2분 안에 가져가 배포한다 (6번).
 
 AWS 프로젝트(새로운 AWS 경험)는 리소스를 **아시아 태평양(시드니) ap-southeast-2** 한 곳에만 만들 수 있다.
 그래서 배포 서버용 DB도 Neon **시드니**에 따로 만들어 서버 바로 옆에 둔다. 팀 개발용 Neon(싱가포르)은 그대로 쓴다.
@@ -98,15 +100,40 @@ bash deploy/deploy.sh develop
 curl "https://zipfit.duckdns.org/api/auth/email-availability?email=test@test.com"
 ```
 
-JSON이 나오면 성공이다. 프론트에서는 `VITE_API_BASE_URL=https://zipfit.duckdns.org` 로 이 서버를 쓴다.
+JSON이 나오면 성공이다.
 
-## 다시 배포할 때
+## 6. 프론트 (같은 주소, 자동 배포)
+
+처음 한 번 (서버에서):
+
+```bash
+cd ~/Backend
+bash deploy/deploy-frontend.sh        # Frontend develop을 빌드해 바로 올린다 (~/frontend 생성)
+bash deploy/install-frontend-cd.sh    # 2분마다 자동 배포하는 타이머 설치
+```
+
+`deploy-frontend.sh`를 docker compose보다 먼저 한 번 돌려야 `~/frontend`가 ubuntu 소유로 만들어진다.
+
+**자동 배포 흐름**: Frontend `develop`에 머지 → GitHub Actions CI(lint·테스트·빌드) → 서버 타이머가 2분마다 새 커밋을 보고 **CI가 통과했을 때만** Node 컨테이너로 빌드해 `~/frontend/releases/<커밋>`에 두고 `current`를 한 번에 바꾼다.
+빌드가 실패하거나 CI가 실패하면 기존 화면이 그대로 남는다. (AWS 프로젝트가 GitHub OIDC를 막아 GitHub Actions가 서버로 직접 배포하지 못해서, 서버가 가져가는 방식이다.)
+
+```bash
+journalctl -u zipfit-frontend-deploy -n 30     # 자동 배포 기록
+bash deploy/deploy-frontend.sh                  # 기다리지 않고 지금 배포
+sudo systemctl disable --now zipfit-frontend-deploy.timer   # 자동 배포 끄기
+```
+
+- 프론트는 `VITE_API_BASE_URL`을 비워 빌드해서 API·WebSocket을 같은 주소로 보낸다. 같은 주소라 iOS Safari에서도 재발급 토큰 쿠키가 막히지 않는다.
+- 카카오 지도 JavaScript 키는 `deploy/.env`의 `VITE_KAKAO_JS_KEY`. 바꾼 뒤 `bash deploy/deploy-frontend.sh`로 다시 빌드한다.
+- **카카오 디벨로퍼스 등록**: 카카오 로그인 Redirect URI `https://zipfit.duckdns.org/oauth/kakao/callback`, 플랫폼 Web 사이트 도메인 `https://zipfit.duckdns.org`.
+
+## 다시 배포할 때 (백엔드)
 
 ```bash
 cd ~/Backend && bash deploy/deploy.sh develop
 ```
 
-`develop`의 최신 코드를 받아 다시 빌드하고, 바뀐 컨테이너만 다시 띄운다. 업로드한 파일(프로필 이미지)과 HTTPS 인증서는 Docker 볼륨에 있어 남는다.
+`develop`의 최신 코드를 받아 다시 빌드하고 백엔드를 새 이미지로 다시 띄운다 (15~20초 동안 API가 멈추니 시연 중에는 하지 않는다). coturn은 설정이 바뀔 때만, caddy는 `Caddyfile`이 바뀔 때만 다시 띄운다. 업로드한 파일(프로필 이미지)과 HTTPS 인증서는 Docker 볼륨에 있어 남는다.
 
 ## 자주 쓰는 명령
 
@@ -123,4 +150,5 @@ docker compose restart app        # 백엔드만 다시 시작
 - **비용**: AWS 무료 플랜 크레딧으로 쓴다. 무료 플랜에서는 요금이 청구되지 않고, 6개월이 지나거나 크레딧을 다 쓰면 끝난다. 남은 크레딧과 만료일은 **AWS Settings → Billing** 에서 보거나 `aws freetier get-account-plan-state` 로 확인한다.
 - **`ssh zipfit`이 안 될 때**: ① `aws sts get-caller-identity --profile zipfit` 이 실패하면 `aws login --profile zipfit` 으로 다시 로그인한다. ② `SessionManagerPlugin is not found` 가 나오면 플러그인을 설치했는지 확인하고 VS Code·터미널을 다시 연다. ③ `Permission denied (publickey)` 면 내 공개키가 서버 `~/.ssh/authorized_keys` 에 있는지 확인한다. 접속 장소(IP)가 바뀌는 것은 상관없다.
 - **서버 비용 아끼기**: 쓰지 않을 때 `aws ec2 stop-instances --instance-ids i-01e92d28d3eb4c3d9 --region ap-southeast-2 --profile zipfit` 로 끌 수 있다 (켜기: `start-instances`). 꺼 둬도 탄력적 IP와 디스크 비용은 나온다.
-- **프론트를 배포하면**: `deploy/.env`의 `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `KAKAO_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`를 프론트 주소로 바꾸고, 카카오 디벨로퍼스(Redirect URI, 플랫폼 Web 도메인)에도 같은 주소를 등록한다.
+- **프론트 주소 설정**: `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `KAKAO_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`는 `docker-compose.yml`이 `DOMAIN`으로 채운다 (`deploy/.env`에서 고치지 않는다). 로컬 프론트(`localhost:5173`)에서 이 서버를 불러도 되게 CORS에 함께 허용한다.
+- **`TURN_PUBLIC_IP`·`TURN_PRIVATE_IP`**: `deploy.sh`가 배포할 때마다 `deploy/.env`에 적는다. 서버에서 `docker compose`를 직접 실행해도 coturn이 같은 값으로 뜬다.
