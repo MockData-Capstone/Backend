@@ -45,6 +45,35 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// .env (KEY=VALUE) 읽기. 테스트 DB 설정(TEST_DB_*)을 찾는 데만 쓴다.
+def dotenv = [:]
+if (file('.env').exists()) {
+	file('.env').eachLine('UTF-8') { line ->
+		def m = line =~ /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/
+		if (m) dotenv[m[0][1]] = m[0][2].trim()
+	}
+}
+def setting = { String key, String fallback -> System.getenv(key) ?: dotenv[key] ?: fallback }
+
 tasks.named('test') {
 	useJUnitPlatform()
+
+	// 테스트도 application.properties 하나를 그대로 쓰고, 아래 값만 환경 변수로 덮어쓴다 (환경 변수가 .env보다 우선).
+	// DB는 운영 DB(DB_URL)가 아닌 테스트 전용 PostgreSQL을 쓴다. AuthTestSupport.cleanUp()이 테스트마다 모든 테이블을 비우기 때문이다.
+	// TEST_DB_URL·TEST_DB_USERNAME·TEST_DB_PASSWORD를 환경 변수나 .env에 두고, 없으면 localhost:5432/zipfit_test (CI의 PostgreSQL 컨테이너)
+	def testDbUrl = setting('TEST_DB_URL', 'jdbc:postgresql://localhost:5432/zipfit_test')
+	environment 'DB_URL', testDbUrl
+	environment 'DB_USERNAME', setting('TEST_DB_USERNAME', 'postgres')
+	environment 'DB_PASSWORD', setting('TEST_DB_PASSWORD', 'postgres')
+	// 기본값이 없는 필수 값. 테스트에서는 아무 값이면 된다 (메일은 MailService mock으로 대신한다)
+	environment 'JWT_SECRET', 'test-secret-key-for-zipfit-must-be-at-least-32-bytes-long'
+	environment 'MAIL_USERNAME', 'test@zipfit.app'
+	environment 'MAIL_PASSWORD', 'test-mail-password'
+	environment 'STORAGE_LOCAL_DIR', 'build/test-uploads'
+
+	doFirst {
+		if (testDbUrl == setting('DB_URL', null)) {
+			throw new GradleException('TEST_DB_URL이 운영 DB(DB_URL)와 같다. 테스트는 모든 테이블을 비우므로 테스트 전용 DB를 써야 한다.')
+		}
+	}
 }

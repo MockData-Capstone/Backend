@@ -16,6 +16,23 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
 
+    # 테스트 전용 PostgreSQL (Neon과 같은 엔진). 테스트가 테이블을 비우므로 Neon(운영 DB)에는 붙지 않는다.
+    # build.gradle의 TEST_DB_* 기본값(localhost:5432/zipfit_test, postgres/postgres)과 맞춘다.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: zipfit_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v7
 
@@ -28,8 +45,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # 테스트는 src/test/resources/application.properties의 H2 인메모리 DB를 쓴다.
-      # (Neon/PostgreSQL 접속 정보가 필요 없다)
       - name: Build & Test
         run: ./gradlew build
 

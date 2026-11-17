@@ -66,18 +66,19 @@ public abstract class AuthTestSupport {
 	}
 
 	/**
-	 * 도메인이 늘어도 고치지 않도록 모든 테이블을 비운다.
-	 * ID는 이어서 쓴다. 앞 테스트의 WebSocket 연결이 남아 있어도 새 회원·Workspace와 ID가 겹치지 않게 하기 위해서다.
+	 * 도메인이 늘어도 고치지 않도록 모든 테이블을 비운다. (PostgreSQL)
+	 * 한 문장으로 모든 테이블을 비워 외래 키 순서를 신경 쓰지 않는다.
+	 * ID는 이어서 쓴다(TRUNCATE 기본값). 앞 테스트의 WebSocket 연결이 남아 있어도 새 회원·Workspace와 ID가 겹치지 않게 하기 위해서다.
 	 */
 	@AfterEach
 	void cleanUp() {
 		List<String> tables = jdbcTemplate.queryForList(
-			"select table_name from information_schema.tables where lower(table_schema) = 'public' and table_type = 'BASE TABLE'",
+			"select table_name from information_schema.tables where table_schema = current_schema() and table_type = 'BASE TABLE'",
 			String.class
 		);
-		jdbcTemplate.execute("set referential_integrity false");
-		tables.forEach(table -> jdbcTemplate.execute("truncate table \"" + table + "\""));
-		jdbcTemplate.execute("set referential_integrity true");
+		if (!tables.isEmpty()) {
+			jdbcTemplate.execute("truncate table " + String.join(", ", tables.stream().map(t -> "\"" + t + "\"").toList()));
+		}
 	}
 
 	protected Tokens signupLocal(String email, String password, String nickname) throws Exception {
