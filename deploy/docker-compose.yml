@@ -51,6 +51,9 @@ services:
       - --static-auth-secret=${TURN_SECRET}
       - --realm=${DOMAIN}
       - --external-ip=${TURN_PUBLIC_IP}/${TURN_PRIVATE_IP}
+      # host 네트워크라 Docker 내부망(172.17.x 등)까지 잡지 않도록 서버 사설 IP 하나로만 받고 중계한다.
+      - --listening-ip=${TURN_PRIVATE_IP}
+      - --relay-ip=${TURN_PRIVATE_IP}
       - --fingerprint
       # 인증서 없이 쓰므로 TLS는 끈다. DTLS와 관리용 CLI는 4.19.0에서 기본으로 꺼져 있다.
       - --no-tls
