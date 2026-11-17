@@ -15,6 +15,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.support.MissingServletRequestPartExcept
 public class GlobalExceptionHandler {
 
 	private static final String REQUIRED_MESSAGE = "필수 값입니다.";
+	private static final String TYPE_MISMATCH_MESSAGE = "형식이 올바르지 않습니다.";
 
 	@ExceptionHandler(AccountLinkRequiredException.class)
 	public ResponseEntity<AccountLinkRequiredResponse> handleAccountLinkRequired(AccountLinkRequiredException e) {
@@ -71,6 +73,13 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException e) {
 		return ResponseEntity.badRequest().body(ErrorResponse.of(ErrorCode.INVALID_INPUT));
+	}
+
+	// 경로·쿼리 값의 타입이 맞지 않는 경우 (예: /api/workspaces/abc). 잡지 않으면 500으로 나간다.
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+		return ResponseEntity.badRequest()
+			.body(ErrorResponse.invalidInput(List.of(new FieldError(e.getName(), TYPE_MISMATCH_MESSAGE))));
 	}
 
 	// 업로드 용량 제한(spring.servlet.multipart.max-file-size) 초과. 지금은 프로필 이미지만 업로드한다.
