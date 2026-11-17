@@ -9,6 +9,11 @@ services:
     environment:
       STORAGE_LOCAL_DIR: /app/uploads
       PUBLIC_BASE_URL: https://${DOMAIN}
+      # 프론트도 같은 주소에서 서비스한다 (Caddyfile). 로컬 프론트(localhost:5173)에서 이 서버를 불러도 되게 함께 허용한다.
+      FRONTEND_URL: https://${DOMAIN}
+      CORS_ALLOWED_ORIGINS: https://${DOMAIN},http://localhost:5173
+      KAKAO_REDIRECT_URI: https://${DOMAIN}/oauth/kakao/callback
+      GOOGLE_REDIRECT_URI: https://${DOMAIN}/oauth/google/callback
       WEBRTC_TURN_URLS: turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp
       WEBRTC_TURN_SECRET: ${TURN_SECRET}
       # caddy가 넘겨주는 X-Forwarded-* 헤더로 원래 주소(https)를 알아낸다.
@@ -29,6 +34,8 @@ services:
       DOMAIN: ${DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 프론트 빌드 결과 (/home/ubuntu/frontend). deploy-frontend.sh가 releases/<커밋>에 빌드하고 current를 바꾼다.
+      - ../../frontend:/srv/frontend:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
