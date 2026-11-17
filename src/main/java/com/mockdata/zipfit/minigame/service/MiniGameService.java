@@ -27,6 +27,7 @@ import com.mockdata.zipfit.workspace.service.WorkspaceAccess;
 import com.mockdata.zipfit.workspace.service.WorkspaceEventTypes;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -349,9 +350,10 @@ public class MiniGameService {
 			.collect(Collectors.toSet());
 	}
 
+	/** 참가 순서(ID 순)를 유지한다. 응답의 participants 순서가 이 순서를 따른다. */
 	private Map<Long, MiniGameParticipant> participantsById(MiniGame game) {
 		return participantRepository.findAllByGameIdOrderByIdAsc(game.getId()).stream()
-			.collect(Collectors.toMap(MiniGameParticipant::getUserId, Function.identity()));
+			.collect(Collectors.toMap(MiniGameParticipant::getUserId, Function.identity(), (a, b) -> a, LinkedHashMap::new));
 	}
 
 	private void publish(MiniGame game, String type, Object data) {
