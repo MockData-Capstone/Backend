@@ -1,0 +1,75 @@
+# EC2 배포용. deploy.sh로 실행한다 (TURN_PUBLIC_IP·TURN_PRIVATE_IP를 자동으로 넣어 준다).
+# 설정 값은 같은 폴더의 .env에 둔다 (.env.example 참고).
+services:
+  # 백엔드 (Spring Boot). 밖으로는 열지 않고 caddy를 거쳐서만 받는다.
+  app:
+    build: ..
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      STORAGE_LOCAL_DIR: /app/uploads
+      PUBLIC_BASE_URL: https://${DOMAIN}
+      WEBRTC_TURN_URLS: turn:${DOMAIN}:3478?transport=udp,turn:${DOMAIN}:3478?transport=tcp
+      WEBRTC_TURN_SECRET: ${TURN_SECRET}
+      # caddy가 넘겨주는 X-Forwarded-* 헤더로 원래 주소(https)를 알아낸다.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+    volumes:
+      - uploads:/app/uploads
+    mem_limit: 1g
+
+  # HTTPS (Let's Encrypt 인증서 자동 발급·갱신) + 백엔드로 전달. WebSocket도 그대로 넘긴다.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+  # TURN (WebRTC 중계). 이동통신망처럼 P2P가 막히는 환경에서 영상을 중계한다.
+  # 백엔드가 coturn의 use-auth-secret 방식으로 시간 제한 자격증명을 발급한다 (IceServerIssuer).
+  coturn:
+    # 버전을 고정한다. 4.19.0에서 --no-dtls가 없어지는 등 옵션이 바뀌어 latest는 갑자기 뜨지 않을 수 있다.
+    image: coturn/coturn:4.19.0
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -n
+      - --log-file=stdout
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=${DOMAIN}
+      - --external-ip=${TURN_PUBLIC_IP}/${TURN_PRIVATE_IP}
+      # host 네트워크라 Docker 내부망(172.17.x 등)까지 잡지 않도록 서버 사설 IP 하나로만 받고 중계한다.
+      - --listening-ip=${TURN_PRIVATE_IP}
+      - --relay-ip=${TURN_PRIVATE_IP}
+      - --fingerprint
+      # 인증서 없이 쓰므로 TLS는 끈다. DTLS와 관리용 CLI는 4.19.0에서 기본으로 꺼져 있다.
+      - --no-tls
+      - --no-multicast-peers
+      # TURN을 거쳐 서버 내부망·EC2 메타데이터(169.254.169.254)에 접근하지 못하게 막는다.
+      - --denied-peer-ip=0.0.0.0-0.255.255.255
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=100.64.0.0-100.127.255.255
+      - --denied-peer-ip=127.0.0.0-127.255.255.255
+      - --denied-peer-ip=169.254.0.0-169.254.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+      # 두 사용자가 모두 TURN을 쓰면 서버 자신에게 중계하므로 자기 사설 IP는 허용한다.
+      - --allowed-peer-ip=${TURN_PRIVATE_IP}
+
+volumes:
+  uploads:
+  caddy_data:
+  caddy_config:
