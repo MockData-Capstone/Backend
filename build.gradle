@@ -71,6 +71,15 @@ tasks.named('test') {
 	environment 'MAIL_PASSWORD', 'test-mail-password'
 	environment 'STORAGE_LOCAL_DIR', 'build/test-uploads'
 
+	// 로컬에서 테스트 DB를 설정하지 않았으면 테스트를 건너뛴다 (빌드는 통과). CI에서는 항상 돌린다.
+	onlyIf('TEST_DB_URL이 설정됐거나 CI다') {
+		boolean run = setting('TEST_DB_URL', null) != null || System.getenv('CI') != null
+		if (!run) {
+			logger.warn('테스트를 건너뛴다: TEST_DB_URL이 없다. 테스트는 CI(GitHub Actions)에서 돈다. 로컬에서 돌리려면 README의 "빌드 / 테스트"를 본다.')
+		}
+		run
+	}
+
 	doFirst {
 		if (testDbUrl == setting('DB_URL', null)) {
 			throw new GradleException('TEST_DB_URL이 운영 DB(DB_URL)와 같다. 테스트는 모든 테이블을 비우므로 테스트 전용 DB를 써야 한다.')
