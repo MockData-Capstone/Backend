@@ -115,8 +115,9 @@ public class SignalingSocketHandler extends TextWebSocketHandler {
 		Long userId = SocketSessions.userId(raw);
 		// 같은 회원이 새로 접속해 바뀐 연결이면 퇴장으로 보지 않는다.
 		if (rooms.unregister(tourId, userId, raw) && rooms.isJoined(raw)) {
-			rooms.broadcastExcept(tourId, userId, WsMessage.of(PEER_LEFT, new Peer(userId, null, null)));
+			// 상태를 먼저 커밋하고 알린다. PEER_LEFT를 받고 바로 투어를 조회해도 끊긴 상태가 보이게 한다.
 			tourService.reportConnectionState(tourId, userId, ConnectionState.DISCONNECTED);
+			rooms.broadcastExcept(tourId, userId, WsMessage.of(PEER_LEFT, new Peer(userId, null, null)));
 		}
 	}
 
