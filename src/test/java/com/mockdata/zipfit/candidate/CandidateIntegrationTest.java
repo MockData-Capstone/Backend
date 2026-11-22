@@ -2,6 +2,10 @@ package com.mockdata.zipfit.candidate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -19,6 +23,8 @@ import com.mockdata.zipfit.candidate.service.CandidateService;
 import com.mockdata.zipfit.chat.service.ChatService;
 import com.mockdata.zipfit.common.event.WorkspaceEvent;
 import com.mockdata.zipfit.common.exception.ErrorCode;
+import com.mockdata.zipfit.location.building.BuildingClient.Building;
+import com.mockdata.zipfit.location.place.PlaceSearchClient.Place;
 import com.mockdata.zipfit.recommendation.entity.Recommendation;
 import com.mockdata.zipfit.recommendation.repository.AnalysisRepository;
 import com.mockdata.zipfit.recommendation.repository.RecommendationRepository;
@@ -108,6 +114,70 @@ class CandidateIntegrationTest extends AuthTestSupport {
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.location.slope").doesNotExist())
 			.andExpect(jsonPath("$.location.vehicleAccess.access").exists());
+	}
+
+	@Test
+	@DisplayName("LOC-04 후보지를 추가하면 일조·소음을 추정해 입지 정보와 비교표에 함께 담는다")
+	void sunlightAndNoise() throws Exception {
+		Fixture f = analyzedWorkspace();
+		given(placeSearchClient.available()).willReturn(true);
+		given(placeSearchClient.searchCategory(eq("SW8"), anyDouble(), anyDouble(), anyInt()))
+			.willReturn(List.of(new Place("성수역 2호선", "교통,수송 > 지하철,전철 > 수도권2호선", 120)));
+		given(buildingClient.available()).willReturn(true);
+		given(buildingClient.findBuildings(anyDouble(), anyDouble(), anyInt()))
+			.willAnswer(call -> List.of(tallWallSouthOf(call.getArgument(0), call.getArgument(1))));
+
+		Long candidateId = candidateIdOf(add(f.host(), f.workspaceId(), f.recommendationIds().get(0))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.location.sunlight.grade").value("INSUFFICIENT"))
+			.andExpect(jsonPath("$.location.sunlight.totalMinutes").value(0))
+			.andExpect(jsonPath("$.location.sunlight.estimated").value(true))
+			.andExpect(jsonPath("$.location.noise.grade").value("MEDIUM"))
+			.andExpect(jsonPath("$.location.noise.warnings[0].source").value("SUBWAY_STATION"))
+			.andExpect(jsonPath("$.location.noise.warnings[0].distanceMeters").value(120))
+			.andExpect(jsonPath("$.location.noise.warnings[0].message").value(
+				"지하철역 '성수역 2호선'까지 120m — 역 주변 유동 인구 소음이 있을 수 있어요")));
+		add(f.host(), f.workspaceId(), f.recommendationIds().get(1)).andExpect(status().isCreated());
+
+		mockMvc.perform(bearer(get("/api/candidates/" + candidateId), f.guest()))
+			.andExpect(jsonPath("$.location.noise.warnings.length()").value(1));
+		mockMvc.perform(bearer(get("/api/workspaces/%d/comparisons".formatted(f.workspaceId())), f.guest()))
+			.andExpect(jsonPath("$.items[0].sunlight.grade").value("INSUFFICIENT"))
+			.andExpect(jsonPath("$.items[0].noise.grade").value("MEDIUM"));
+	}
+
+	@Test
+	@DisplayName("LOC-04 일조 추정에 실패하거나 키가 없으면 그 항목만 비운다")
+	void sunlightFailureIsolated() throws Exception {
+		Fixture f = analyzedWorkspace();
+		given(placeSearchClient.available()).willReturn(true);
+		given(buildingClient.available()).willReturn(true);
+		given(buildingClient.findBuildings(anyDouble(), anyDouble(), anyInt()))
+			.willThrow(new IllegalStateException("브이월드 장애"));
+
+		add(f.host(), f.workspaceId(), f.recommendationIds().get(0))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.location.sunlight").doesNotExist())
+			.andExpect(jsonPath("$.location.noise.grade").value("LOW"))
+			.andExpect(jsonPath("$.location.noise.warnings").isEmpty())
+			.andExpect(jsonPath("$.location.slope.grade").exists());
+
+		given(placeSearchClient.available()).willReturn(false);
+		add(f.host(), f.workspaceId(), f.recommendationIds().get(1))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.location.noise").doesNotExist());
+	}
+
+	/** 후보지 바로 남쪽(5~15m)에 동서로 200m 뻗은 60m 높이 건물. 동지 하루 종일 해를 가린다. */
+	private static Building tallWallSouthOf(double latitude, double longitude) {
+		double dLat = 1 / 110_574.0;
+		double dLng = 1 / (111_320.0 * Math.cos(Math.toRadians(latitude)));
+		return new Building(List.of(
+			new double[] {longitude - 100 * dLng, latitude - 5 * dLat},
+			new double[] {longitude + 100 * dLng, latitude - 5 * dLat},
+			new double[] {longitude + 100 * dLng, latitude - 15 * dLat},
+			new double[] {longitude - 100 * dLng, latitude - 15 * dLat}
+		), 60);
 	}
 
 	@Test

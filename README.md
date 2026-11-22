@@ -220,7 +220,9 @@ java -jar build/libs/*.jar
 | `JWT_SECRET` | JWT 서명 키 (256bit 이상) | - | ✅ (인증 구현 후) |
 | `JWT_ACCESS_EXPIRE` | Access Token 만료 (Duration) | `30m` (기본값) | ⬜ |
 | `JWT_REFRESH_EXPIRE` | Refresh Token 만료 (Duration) | `14d` (기본값) | ⬜ |
-| `KAKAO_REST_API_KEY` | 카카오 REST API 키 (로컬/로드뷰/도보경로, 로그인) | - | ✅ (FR-000, REC, LOC) |
+| `KAKAO_REST_API_KEY` | 카카오 REST API 키 (로그인, 소음 추정용 장소 검색) | - | ✅ (FR-000, REC, LOC) |
+| `VWORLD_API_KEY` | 브이월드 인증키 (일조 추정용 GIS건물통합정보). 없으면 일조는 "정보 없음" | - | ⬜ (LOC-04) |
+| `VWORLD_DOMAIN` | 그 인증키에 등록한 서비스 URL. 로컬에서도 같은 값을 보낸다 | `zipfit.duckdns.org` | ⬜ (LOC-04) |
 | `KAKAO_CLIENT_SECRET` | 카카오 로그인 Client Secret | - | ✅ (AUTH-02) |
 | `KAKAO_REDIRECT_URI` | 카카오 로그인 콜백 URI (프론트 콜백 페이지) | `http://localhost:5173/oauth/kakao/callback` | ✅ (AUTH-02) |
 | `KAKAO_ADMIN_KEY` | 탈퇴 시 카카오 연결 끊기용 어드민 키 | - | ⬜ (AUTH-06, 없으면 연결 끊기 생략) |
@@ -485,7 +487,6 @@ src/main/java/com/mockdata/zipfit/
 
 - 매물 검색 링크의 사이트별 가격·면적·방 구조 파라미터 (PRD Q6): 확인 전이라 네이버 부동산은 지도 위치만, 직방은 지도 메인으로 연결하고 나머지 조건은 `excludedConditions`로 안내한다. 확인되면 `listinglink/ListingSites`에 반영한다.
 - 편의시설 조건 제안(REC-03): 후보 주변 시설 정보(지도 API)를 백엔드가 아직 조회하지 않아 경사·차량 제안만 한다.
-- 일조·소음(LOC-04, P1): AI 서버 산출이 필요하다.
 - 웹 푸시 실제 발송(P2): 구독 저장까지만 하고 발송은 로그만 남긴다(`LoggingWebPushSender`). VAPID 키 발급 후 구현한다.
 
 ### API명세서와 다른 점
@@ -501,7 +502,7 @@ src/main/java/com/mockdata/zipfit/
 | 구글 로그인 | 행 없음 | `/api/auth/google/...` 구현됨 (팀 결정 필요) |
 | 경사도·차량 진입 `/api/ai/slope`, `/vehicle-access` | 로드뷰 이미지 AI 분석으로 보완 | 공공데이터 + 팀 촬영 이미지 VLM. 로드뷰는 분석하지 않는다 (LOC-01·02, PRD 3장·9장) |
 | 후보지 조회 | 확장 정보 요약 포함 | 입지 정보(경사도·진입성) 요약 (확장 정보 EXT 삭제, v0.9) |
-| 비교표 `POST /comparisons` | 비교표를 생성·저장하고 GET으로 조회, 일조량·소음 포함 | 저장하지 않고 GET·POST 모두 요청 시 생성. 경사도·진입성·투표만 (CMP-01, 일조·소음은 P1) |
+| 비교표 `POST /comparisons` | 비교표를 생성·저장하고 GET으로 조회, 일조량·소음 포함 | 저장하지 않고 GET·POST 모두 요청 시 생성. 경사도·진입성·일조·소음·투표 (CMP-01, LOC-04) |
 | 후보지 상세·이름 수정 | 행 없음 | `GET`·`PATCH /api/candidates/{id}` (CAND-02·04) |
 | 미니게임 진행 통지 | 시그널링 카테고리 | 게임 중에는 투어 방이 없어 Workspace 소켓으로 보낸다. 중단(`GAME_ABORTED`)·참가자 이탈(`GAME_PLAYER_LEFT`) 통지 추가 (SIG-06, GAME-02·04) |
 | 시그널링 연결 상태 | `CONNECTION_STATE`만 | 다른 참여자에게 `PEER_STATE`로 알린다 ("방문자 연결 끊김" 표시, SIG-04) |
@@ -588,7 +589,8 @@ spring:
 
 - **배리어프리(휠체어 접근성) 분석은 하지 않는다.** 진입성은 **차량 진입 가능 여부** 기준이다.
 - 경사 등급: 완만(5% 이하) / 보통(5%초과~8.3%) / 가파름(8.3% 초과) — 건축법 접근로 기준·ADA 기준을 **참조**한 팀 정의 등급이며 법정 기준이 아니다.
-- 일조(P1)는 대법원 2006다35865 수인한도(동지 09~15시 연속 2시간, 08~16시 총 4시간)를, 소음(P1)은 환경정책기본법 시행령 소음 환경기준을 참조한다.
+- 일조(LOC-04)는 대법원 2006다35865 수인한도(동지 09~15시 연속 2시간, 08~16시 총 4시간)로 등급을 나눈다. 브이월드 건물정보와 태양 위치로 계산한다.
+- 소음(LOC-04)은 공개 측정 API가 없어 주변 소음원(공항·역·술집·학교 등)까지의 거리·개수로 추정한다. dB 값이 아니며 기준 거리는 기능명세서 LOC-04 표를 따른다.
 
 ### 7. 커뮤니티 기능 보류
 
