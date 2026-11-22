@@ -17,6 +17,10 @@ import com.mockdata.zipfit.common.event.WorkspaceDeletingEvent;
 import com.mockdata.zipfit.common.event.WorkspaceEvent;
 import com.mockdata.zipfit.common.exception.BusinessException;
 import com.mockdata.zipfit.common.exception.ErrorCode;
+import com.mockdata.zipfit.location.noise.NoiseEstimator;
+import com.mockdata.zipfit.location.noise.NoiseResult;
+import com.mockdata.zipfit.location.sunlight.SunlightEstimator;
+import com.mockdata.zipfit.location.sunlight.SunlightResult;
 import com.mockdata.zipfit.recommendation.entity.Recommendation;
 import com.mockdata.zipfit.recommendation.service.CandidateLookup;
 import com.mockdata.zipfit.recommendation.service.RecommendationService;
@@ -55,13 +59,15 @@ public class CandidateService implements CandidateLookup {
 	private final RecommendationService recommendationService;
 	private final WorkspaceAccess workspaceAccess;
 	private final AiClient aiClient;
+	private final SunlightEstimator sunlightEstimator;
+	private final NoiseEstimator noiseEstimator;
 	private final ObjectProvider<VoteSummaryProvider> voteSummaryProvider;
 	private final ApplicationEventPublisher eventPublisher;
 	private final TransactionTemplate transactionTemplate;
 
 	/**
-	 * CAND-01 추천 위치를 후보지로 추가하고 입지 정보(경사도·진입성)를 산출한다.
-	 * 입지 분석은 AI 서버를 부르므로 트랜잭션 밖에서 하고, 실패한 항목은 비워 둔다("정보 없음").
+	 * CAND-01 추천 위치를 후보지로 추가하고 입지 정보(경사도·진입성·일조·소음)를 산출한다.
+	 * 입지 분석은 외부 서버를 부르므로 트랜잭션 밖에서 하고, 실패한 항목은 비워 둔다("정보 없음").
 	 */
 	public CandidateResponse add(Long workspaceId, Long userId, Long recommendationId) {
 		workspaceAccess.requireMember(workspaceId, userId);
@@ -184,7 +190,10 @@ public class CandidateService implements CandidateLookup {
 		return provider == null || candidateIds.isEmpty() ? Map.of() : provider.summarize(candidateIds, viewerUserId);
 	}
 
-	/** LOC-01·02 경사도의 목적지는 최근 분석에서 추출한 학교·직장이고, 없으면 AI 서버가 가장 가까운 지하철역을 쓴다. */
+	/**
+	 * LOC-01·02 경사도의 목적지는 최근 분석에서 추출한 학교·직장이고, 없으면 AI 서버가 가장 가까운 지하철역을 쓴다.
+	 * LOC-04 일조·소음은 백엔드가 공공·지도 API로 추정한다. 키가 없거나 실패하면 그 항목만 비운다.
+	 */
 	private LocationInfo analyzeLocation(Long workspaceId, double latitude, double longitude) {
 		List<String> destinations = recommendationService.getLatestConditions(workspaceId)
 			.map(ExtractedConditions::destinations)
@@ -193,7 +202,11 @@ public class CandidateService implements CandidateLookup {
 			aiClient.estimateSlope(new SlopeRequest(latitude, longitude, destinations.stream().limit(3).toList())));
 		VehicleAccessResponse vehicle = callSafely("차량 진입성", () ->
 			aiClient.estimateVehicleAccess(new VehicleAccessRequest(latitude, longitude)));
-		return LocationInfo.of(slope, vehicle);
+		SunlightResult sunlight = callSafely("일조", () ->
+			sunlightEstimator.estimate(latitude, longitude).orElse(null));
+		NoiseResult noise = callSafely("소음", () ->
+			noiseEstimator.estimate(latitude, longitude).orElse(null));
+		return LocationInfo.of(slope, vehicle, sunlight, noise);
 	}
 
 	private static <T> T callSafely(String item, Supplier<T> call) {
