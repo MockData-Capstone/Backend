@@ -34,7 +34,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 
 /** 통합 테스트 공통 설정. 외부 연동(카카오·구글·메일·장소 검색·건물정보)은 mock으로 대신한다. */
-@SpringBootTest
+@SpringBootTest(properties = "location.backfill-on-startup=false")
 @AutoConfigureMockMvc
 public abstract class AuthTestSupport {
 

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -20,6 +21,7 @@ import com.mockdata.zipfit.ai.AiServerException;
 import com.mockdata.zipfit.auth.AuthTestSupport;
 import com.mockdata.zipfit.candidate.repository.CandidateRepository;
 import com.mockdata.zipfit.candidate.service.CandidateService;
+import com.mockdata.zipfit.candidate.service.LocationBackfillService;
 import com.mockdata.zipfit.chat.service.ChatService;
 import com.mockdata.zipfit.common.event.WorkspaceEvent;
 import com.mockdata.zipfit.common.exception.ErrorCode;
@@ -54,6 +56,8 @@ class CandidateIntegrationTest extends AuthTestSupport {
 	RecommendationRepository recommendationRepository;
 	@Autowired
 	ApplicationEvents events;
+	@Autowired
+	LocationBackfillService locationBackfillService;
 
 	@Test
 	@DisplayName("CAND-01 추천 위치를 후보지로 추가하면 입지 정보를 산출하고, 같은 위치는 다시 추가할 수 없다")
@@ -166,6 +170,35 @@ class CandidateIntegrationTest extends AuthTestSupport {
 		add(f.host(), f.workspaceId(), f.recommendationIds().get(1))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.location.noise").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("LOC-04 일조·소음이 비어 있는 후보지는 다시 추정해 빈 항목만 채운다")
+	void backfillSunlightAndNoise() throws Exception {
+		Fixture f = analyzedWorkspace();
+		Long candidateId = candidateIdOf(add(f.host(), f.workspaceId(), f.recommendationIds().get(0))
+			.andExpect(jsonPath("$.location.sunlight").doesNotExist())
+			.andExpect(jsonPath("$.location.noise").doesNotExist()));
+
+		given(placeSearchClient.available()).willReturn(true);
+		given(buildingClient.available()).willReturn(true);
+		given(buildingClient.findBuildings(anyDouble(), anyDouble(), anyInt()))
+			.willThrow(new IllegalStateException("브이월드 장애"));
+		assertThat(locationBackfillService.backfill()).isEqualTo(1);
+		mockMvc.perform(bearer(get("/api/candidates/" + candidateId), f.guest()))
+			.andExpect(jsonPath("$.location.sunlight").doesNotExist())
+			.andExpect(jsonPath("$.location.noise.grade").value("LOW"))
+			.andExpect(jsonPath("$.location.slope.grade").exists());
+
+		given(placeSearchClient.searchCategory(eq("SW8"), anyDouble(), anyDouble(), anyInt()))
+			.willReturn(List.of(new Place("성수역 2호선", "교통,수송 > 지하철,전철 > 수도권2호선", 120)));
+		willAnswer(call -> List.of(tallWallSouthOf(call.getArgument(0), call.getArgument(1))))
+			.given(buildingClient).findBuildings(anyDouble(), anyDouble(), anyInt());
+		assertThat(locationBackfillService.backfill()).isEqualTo(1);
+		mockMvc.perform(bearer(get("/api/candidates/" + candidateId), f.guest()))
+			.andExpect(jsonPath("$.location.sunlight.grade").value("INSUFFICIENT"))
+			.andExpect(jsonPath("$.location.noise.grade").value("LOW"));
+		assertThat(locationBackfillService.backfill()).isZero();
 	}
 
 	/** 후보지 바로 남쪽(5~15m)에 동서로 200m 뻗은 60m 높이 건물. 동지 하루 종일 해를 가린다. */
