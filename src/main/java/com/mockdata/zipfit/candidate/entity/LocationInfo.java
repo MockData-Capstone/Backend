@@ -95,6 +95,19 @@ public class LocationInfo {
 		return info;
 	}
 
+	/** 비어 있는 일조·소음만 채운다. 이미 있는 값은 그대로 둔다. */
+	void fillMissing(SunlightResult sunlight, NoiseResult noise) {
+		if (sunlightGrade == null && sunlight != null) {
+			sunlightGrade = sunlight.grade();
+			sunlightTotalMinutes = sunlight.totalMinutes();
+			sunlightContinuousMinutes = sunlight.continuousMinutes();
+		}
+		if (noiseGrade == null && noise != null) {
+			noiseGrade = noise.grade();
+			noiseWarnings = noise.warnings();
+		}
+	}
+
 	public static LocationInfo of(SlopeResponse slope, VehicleAccessResponse vehicle) {
 		LocationInfo info = new LocationInfo();
 		if (slope != null && slope.averagePercent() != null) {
