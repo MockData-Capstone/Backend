@@ -10,8 +10,8 @@ EC2 한 대에서 Docker로 세 가지를 함께 띄우고, 프론트와 백엔�
 
 프론트는 Frontend 저장소 `develop`에 CI를 통과한 커밋이 올라오면 서버가 2분 안에 가져가 배포한다 (6번).
 
-AWS 프로젝트(새로운 AWS 경험)는 리소스를 **아시아 태평양(시드니) ap-southeast-2** 한 곳에만 만들 수 있다.
-그래서 배포 서버용 DB도 Neon **시드니**에 따로 만들어 서버 바로 옆에 둔다. 팀 개발용 Neon(싱가포르)은 그대로 쓴다.
+서버는 **아시아 태평양(서울) ap-northeast-2**에 있다 (2026-11-22 시드니에서 옮김).
+배포용 DB는 아직 Neon **시드니**(`zipfit-prod`)를 쓴다. Neon에는 서울 리전이 없어 쿼리마다 약 140ms가 더 걸리므로, 나중에 서울 RDS로 옮길 계획이다. 팀 개발용 Neon(싱가포르)은 그대로 쓴다.
 
 ---
 
@@ -25,12 +25,12 @@ AWS 프로젝트(새로운 AWS 경험)는 리소스를 **아시아 태평양(시
 
 테이블은 서버가 처음 뜰 때 만들어진다.
 
-## 1. EC2 (만들어 둠, 2026-11-17)
+## 1. EC2 (만들어 둠, 2026-11-22, 서울)
 
 | 리소스 | 값 |
 |---|---|
-| 인스턴스 | `zipfit-backend` (`i-01e92d28d3eb4c3d9`), t4g.small (ARM, 2GB), Ubuntu 24.04, gp3 20GB 암호화 |
-| 탄력적 IP | **`16.178.202.175`** (서버를 껐다 켜도 바뀌지 않는다) |
+| 인스턴스 | `zipfit-backend` (`i-07050950f9e4c87a2`), t4g.small (ARM, 2GB), Ubuntu 24.04, gp3 20GB 암호화 |
+| 탄력적 IP | **`3.38.18.55`** (서버를 껐다 켜도 바뀌지 않는다) |
 | 보안 그룹 | `zipfit-backend-sg` — TCP 80·443, TCP·UDP 3478, UDP 49160-49200. **SSH(22)는 열지 않는다** |
 | IAM 역할 | `zipfit-backend-role` — `AmazonSSMManagedInstanceCore`만 (Session Manager 접속용) |
 | 기타 | IMDSv2만 허용, 종료 보호 켬, CPU 크레딧 standard (추가 요금 없음) |
@@ -44,7 +44,7 @@ HTTPS 인증서를 받으려면 도메인이 필요하다.
 
 1. https://www.duckdns.org 에 GitHub 계정으로 로그인
 2. sub domain에 이름(예: `zipfit`)을 넣고 **add domain** → `zipfit.duckdns.org`
-3. 그 줄의 **current ip**에 탄력적 IP `16.178.202.175`를 넣고 **update ip**
+3. 그 줄의 **current ip**에 탄력적 IP `3.38.18.55`를 넣고 **update ip**
 
 ## 3. 서버 접속 (SSH over Session Manager)
 
@@ -55,7 +55,7 @@ HTTPS 인증서를 받으려면 도메인이 필요하다.
 
 **내 PC에서 `ssh zipfit` (처음 한 번 설정)**
 
-1. AWS CLI 로그인: `aws login --profile zipfit` (12시간마다 자동 갱신, 90일마다 다시 로그인)
+1. AWS CLI 로그인: `aws configure set region ap-northeast-2 --profile zipfit` 후 `aws login --profile zipfit` (12시간마다 자동 갱신, 90일마다 다시 로그인)
 2. Session Manager 플러그인 설치 (관리자 권한):
    https://s3.amazonaws.com/session-manager-downloads/plugin/latest/windows/SessionManagerPluginSetup.exe
 3. 내 PC 전용 키를 만들고, 공개키를 서버의 `~/.ssh/authorized_keys`에 추가한다 (이미 접속되는 사람이 브라우저 터미널이나 `ssh zipfit`으로 넣어 준다).
@@ -66,16 +66,16 @@ HTTPS 인증서를 받으려면 도메인이 필요하다.
 4. `~/.ssh/config`에 추가한다 (경로는 내 PC에 맞게):
    ```
    Host zipfit
-       HostName i-01e92d28d3eb4c3d9
+       HostName i-07050950f9e4c87a2
        User ubuntu
        IdentityFile ~/.ssh/zipfit_ed25519
        IdentitiesOnly yes
        ServerAliveInterval 30
-       ProxyCommand C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "$env:Path = 'C:\Program Files\Amazon\SessionManagerPlugin\bin;' + $env:Path; & 'C:\Users\<내 계정>\AppData\Local\Programs\Amazon\AWSCLIV2\aws.exe' ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p --region ap-southeast-2 --profile zipfit"
+       ProxyCommand C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command "$env:Path = 'C:\Program Files\Amazon\SessionManagerPlugin\bin;' + $env:Path; & 'C:\Users\<내 계정>\AppData\Local\Programs\Amazon\AWSCLIV2\aws.exe' ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p --region ap-northeast-2 --profile zipfit"
    ```
 5. 접속: `ssh zipfit` (VS Code: Remote-SSH → `zipfit`)
 
-팀원이 접속하려면 AWS Settings에서 프로젝트 **팀 멤버**로 초대받아 1번부터 진행한다.
+팀원이 접속하려면 계정 관리자에게 IAM Identity Center 사용자(또는 IAM 사용자)를 받아 1번부터 진행한다.
 
 ## 4. 설정 파일 만들기 (서버에서)
 
@@ -115,7 +115,7 @@ bash deploy/install-frontend-cd.sh    # 2분마다 자동 배포하는 타이머
 `deploy-frontend.sh`를 docker compose보다 먼저 한 번 돌려야 `~/frontend`가 ubuntu 소유로 만들어진다.
 
 **자동 배포 흐름**: Frontend `develop`에 머지 → GitHub Actions CI(lint·테스트·빌드) → 서버 타이머가 2분마다 새 커밋을 보고 **CI가 통과했을 때만** Node 컨테이너로 빌드해 `~/frontend/releases/<커밋>`에 두고 `current`를 한 번에 바꾼다.
-빌드가 실패하거나 CI가 실패하면 기존 화면이 그대로 남는다. (AWS 프로젝트가 GitHub OIDC를 막아 GitHub Actions가 서버로 직접 배포하지 못해서, 서버가 가져가는 방식이다.)
+빌드가 실패하거나 CI가 실패하면 기존 화면이 그대로 남는다. (서버가 가져가는 방식이라 GitHub에 AWS 자격 증명을 둘 필요가 없다.)
 
 ```bash
 journalctl -u zipfit-frontend-deploy -n 30     # 자동 배포 기록
@@ -147,8 +147,8 @@ docker compose restart app        # 백엔드만 다시 시작
 
 ## 참고
 
-- **비용**: AWS 무료 플랜 크레딧으로 쓴다. 무료 플랜에서는 요금이 청구되지 않고, 6개월이 지나거나 크레딧을 다 쓰면 끝난다. 남은 크레딧과 만료일은 **AWS Settings → Billing** 에서 보거나 `aws freetier get-account-plan-state` 로 확인한다.
+- **비용**: AWS 무료 플랜 크레딧으로 쓴다. 남은 크레딧과 만료일은 콘솔 **Billing and Cost Management** 에서 보거나 `aws freetier get-account-plan-state --profile zipfit` 로 확인한다.
 - **`ssh zipfit`이 안 될 때**: ① `aws sts get-caller-identity --profile zipfit` 이 실패하면 `aws login --profile zipfit` 으로 다시 로그인한다. ② `SessionManagerPlugin is not found` 가 나오면 플러그인을 설치했는지 확인하고 VS Code·터미널을 다시 연다. ③ `Permission denied (publickey)` 면 내 공개키가 서버 `~/.ssh/authorized_keys` 에 있는지 확인한다. 접속 장소(IP)가 바뀌는 것은 상관없다.
-- **서버 비용 아끼기**: 쓰지 않을 때 `aws ec2 stop-instances --instance-ids i-01e92d28d3eb4c3d9 --region ap-southeast-2 --profile zipfit` 로 끌 수 있다 (켜기: `start-instances`). 꺼 둬도 탄력적 IP와 디스크 비용은 나온다.
+- **서버 비용 아끼기**: 쓰지 않을 때 `aws ec2 stop-instances --instance-ids i-07050950f9e4c87a2 --region ap-northeast-2 --profile zipfit` 로 끌 수 있다 (켜기: `start-instances`). 꺼 둬도 탄력적 IP와 디스크 비용은 나온다.
 - **프론트 주소 설정**: `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `KAKAO_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`는 `docker-compose.yml`이 `DOMAIN`으로 채운다 (`deploy/.env`에서 고치지 않는다). 로컬 프론트(`localhost:5173`)에서 이 서버를 불러도 되게 CORS에 함께 허용한다.
 - **`TURN_PUBLIC_IP`·`TURN_PRIVATE_IP`**: `deploy.sh`가 배포할 때마다 `deploy/.env`에 적는다. 서버에서 `docker compose`를 직접 실행해도 coturn이 같은 값으로 뜬다.
