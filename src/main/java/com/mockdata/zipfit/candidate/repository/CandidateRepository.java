@@ -4,6 +4,7 @@ import com.mockdata.zipfit.candidate.entity.Candidate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -20,6 +21,11 @@ public interface CandidateRepository extends JpaRepository<Candidate, Long> {
 	boolean existsByWorkspaceIdAndLatitudeAndLongitude(Long workspaceId, Double latitude, Double longitude);
 
 	List<Candidate> findAllByWorkspaceIdAndRecommendationIdIn(Long workspaceId, Collection<Long> recommendationIds);
+
+	/** 일조나 소음이 비어 있는 후보지 (LOC-04 이전에 추가됐거나 산출에 실패한 곳) */
+	@Query("select c.id from Candidate c where c.location.sunlightGrade is null or c.location.noiseGrade is null"
+		+ " order by c.id")
+	List<Long> findIdsMissingSunlightOrNoise(Limit limit);
 
 	@Modifying(flushAutomatically = true)
 	@Query("delete from Candidate c where c.workspace.id = :workspaceId")

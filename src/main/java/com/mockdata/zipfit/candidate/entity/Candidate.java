@@ -1,6 +1,8 @@
 package com.mockdata.zipfit.candidate.entity;
 
 import com.mockdata.zipfit.auth.entity.User;
+import com.mockdata.zipfit.location.noise.NoiseResult;
+import com.mockdata.zipfit.location.sunlight.SunlightResult;
 import com.mockdata.zipfit.workspace.entity.Workspace;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
@@ -89,6 +91,15 @@ public class Candidate {
 		this.kakaoPlaceId = kakaoPlaceId;
 		this.addedBy = addedBy;
 		this.location = location;
+	}
+
+	/** 이 기능 전에 추가된 후보지처럼 비어 있는 일조·소음만 채운다 (LOC-04). */
+	public void fillMissingSunlightAndNoise(SunlightResult sunlight, NoiseResult noise) {
+		if (location == null) {
+			// 모든 입지 정보 컬럼이 비어 있으면 JPA가 null로 읽는다.
+			location = LocationInfo.of(null, null);
+		}
+		location.fillMissing(sunlight, noise);
 	}
 
 	public void rename(String name) {
