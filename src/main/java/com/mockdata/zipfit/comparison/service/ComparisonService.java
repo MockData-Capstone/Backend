@@ -46,7 +46,7 @@ public class ComparisonService {
 				LocationResponse location = LocationResponse.of(c.getLocation());
 				return new ComparisonResponse.Row(
 					c.getId(), c.getName(), c.getLatitude(), c.getLongitude(), location.slope(), location.vehicleAccess(),
-					votes.getOrDefault(c.getId(), VoteSummary.EMPTY)
+					location.sunlight(), location.noise(), votes.getOrDefault(c.getId(), VoteSummary.EMPTY)
 				);
 			})
 			.toList();

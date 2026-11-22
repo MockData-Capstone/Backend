@@ -15,6 +15,8 @@ import com.mockdata.zipfit.auth.repository.RefreshTokenRepository;
 import com.mockdata.zipfit.auth.repository.SocialAccountRepository;
 import com.mockdata.zipfit.auth.repository.UserRepository;
 import com.mockdata.zipfit.common.mail.MailService;
+import com.mockdata.zipfit.location.building.BuildingClient;
+import com.mockdata.zipfit.location.place.PlaceSearchClient;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +33,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 
-/** 통합 테스트 공통 설정. 외부 연동(카카오·구글·메일)은 mock으로 대신한다. */
+/** 통합 테스트 공통 설정. 외부 연동(카카오·구글·메일·장소 검색·건물정보)은 mock으로 대신한다. */
 @SpringBootTest
 @AutoConfigureMockMvc
 public abstract class AuthTestSupport {
@@ -55,6 +57,11 @@ public abstract class AuthTestSupport {
 	protected GoogleOAuthClient googleClient;
 	@MockitoBean
 	protected MailService mailService;
+	/** 일조·소음(LOC-04) 외부 API. 기본은 available()=false라 두 항목이 "정보 없음"이다. */
+	@MockitoBean
+	protected PlaceSearchClient placeSearchClient;
+	@MockitoBean
+	protected BuildingClient buildingClient;
 
 	protected record Tokens(String accessToken, String refreshToken) {
 	}
