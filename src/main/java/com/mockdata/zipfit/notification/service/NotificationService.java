@@ -121,8 +121,12 @@ public class NotificationService {
 	public List<Notification> record(
 		Long workspaceId, NotificationType type, Collection<Long> recipientIds, IntFunction<String> message, Long targetId
 	) {
+		// 모두 그룹 화면을 보고 있어 받을 사람이 없으면(채팅에서 흔하다) DB를 더 조회하지 않는다.
+		if (recipientIds.isEmpty()) {
+			return List.of();
+		}
 		String workspaceName = workspaceRepository.findById(workspaceId).map(w -> w.getName()).orElse(null);
-		if (workspaceName == null || recipientIds.isEmpty()) {
+		if (workspaceName == null) {
 			return List.of();
 		}
 		// DB 시각 정밀도(마이크로초)에 맞춰 커서 비교가 어긋나지 않게 한다.

@@ -29,6 +29,19 @@ public class WorkspaceAccess {
 			.orElseThrow(() -> new BusinessException(ErrorCode.NOT_WORKSPACE_MEMBER));
 	}
 
+	/**
+	 * requireMember와 같지만 멤버·Workspace·회원을 한 번의 조회로 가져온다.
+	 * 채팅처럼 자주 불리고 Workspace·회원을 바로 쓰는 곳에서 쿼리 수를 줄인다(DB 왕복마다 지연이 붙는다).
+	 * 멤버가 없을 때만 Workspace가 있는지 따로 확인해 404와 403을 나눈다.
+	 */
+	@Transactional(readOnly = true)
+	public WorkspaceMember requireMemberWithWorkspaceAndUser(Long workspaceId, Long userId) {
+		return memberRepository.findWithWorkspaceAndUserByWorkspaceIdAndUserId(workspaceId, userId)
+			.orElseThrow(() -> new BusinessException(workspaceRepository.existsById(workspaceId)
+				? ErrorCode.NOT_WORKSPACE_MEMBER
+				: ErrorCode.WORKSPACE_NOT_FOUND));
+	}
+
 	@Transactional(readOnly = true)
 	public WorkspaceMember requireHost(Long workspaceId, Long userId) {
 		WorkspaceMember member = requireMember(workspaceId, userId);
