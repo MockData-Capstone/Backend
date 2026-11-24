@@ -378,7 +378,7 @@ src/main/java/com/mockdata/zipfit/
 | `GET` | `/api/workspaces/{workspaceId}/candidates` | 후보지 목록 (입지 정보·투표 집계 요약) | CAND-02 |
 | `GET` | `/api/candidates/{candidateId}` | 후보지 상세 (입지 정보) | CAND-02, LOC-03 |
 | `PATCH` | `/api/candidates/{candidateId}` | 후보지 이름 수정 `{ name }` | CAND-04 |
-| `DELETE` | `/api/candidates/{candidateId}` | 후보지 제외 (추가한 멤버·호스트, 연관 투표 삭제) | CAND-03 |
+| `DELETE` | `/api/candidates/{candidateId}` | 후보지 제외 (멤버 누구나, 연관 투표 삭제) | CAND-03 |
 | `POST` | `/api/candidates/{candidateId}/votes` | 투표 `{ choice: AGREE \| DISAGREE }` | VOTE-01 |
 | `PATCH` | `/api/candidates/{candidateId}/votes/me` | 내 투표 변경 | VOTE-03 |
 | `GET` | `/api/workspaces/{workspaceId}/votes` | 후보지별 찬성·반대, 의견 갈림(`split`), 멤버별 선택 | VOTE-02 |

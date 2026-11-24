@@ -79,7 +79,7 @@
 |---|---|---|---|
 | 후보지 추가 | POST | `/api/workspaces/{workspaceId}/candidates` | [CAND-01] 추천 위치를 후보지로 추가하고 모든 멤버 화면에 실시간으로 반영한다. 이미 후보지로 추가된 위치는 중복으로 추가할 수 없다. |
 | 후보지 조회 | GET | `/api/workspaces/{workspaceId}/candidates` | [CAND-02] 후보지 목록(위치, 확장 정보 요약, 투표 집계 요약)을 조회하고, 없으면 빈 상태를 안내한다. |
-| 후보지 제외 | DELETE | `/api/candidates/{candidateId}` | [CAND-03] 후보지를 제외하고 연관된 투표를 삭제해 비교표에도 반영한다. 후보지를 추가한 멤버 또는 호스트만 제외할 수 있다. |
+| 후보지 제외 | DELETE | `/api/candidates/{candidateId}` | [CAND-03] 후보지를 제외하고 연관된 투표를 삭제해 비교표에도 반영한다. 그룹 멤버면 누가 추가한 후보지든 제외할 수 있다. |
 
 ## comparison
 
