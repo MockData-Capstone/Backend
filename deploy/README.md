@@ -8,7 +8,7 @@ EC2 한 대에서 Docker로 세 가지를 함께 띄우고, 프론트와 백엔�
 | `caddy` | HTTPS 인증서 자동 발급·갱신. `/api`·`/ws`·`/uploads`는 백엔드로, 나머지는 프론트 빌드(`~/frontend/current`)로 |
 | `coturn` | TURN 서버. 이동통신망처럼 P2P가 막힌 환경에서 WebRTC 영상을 중계한다 |
 
-프론트는 Frontend 저장소 `develop`에 CI를 통과한 커밋이 올라오면 서버가 2분 안에 가져가 배포한다 (6번).
+백엔드와 프론트 모두 `develop`에 CI를 통과한 커밋이 올라오면 서버가 2분 안에 가져가 배포한다 (5번, 6번).
 
 서버는 **아시아 태평양(서울) ap-northeast-2**에 있다 (2026-11-22 시드니에서 옮김).
 배포용 DB는 아직 Neon **시드니**(`zipfit-prod`)를 쓴다. Neon에는 서울 리전이 없어 쿼리마다 약 140ms가 더 걸리므로, 나중에 서울 RDS로 옮길 계획이다. 팀 개발용 Neon(싱가포르)은 그대로 쓴다.
@@ -88,13 +88,17 @@ openssl rand -base64 48   # JWT_SECRET에 넣을 값
 nano deploy/.env          # 값 채우기 (저장: Ctrl+O, Enter / 나가기: Ctrl+X)
 ```
 
-## 5. 배포
+## 5. 백엔드 배포 (자동 배포)
+
+처음 한 번 (서버에서):
 
 ```bash
-bash deploy/deploy.sh develop
+cd ~/Backend
+bash deploy/deploy.sh develop          # develop 최신 이미지를 받아 바로 띄운다
+bash deploy/install-backend-cd.sh      # 2분마다 새 이미지를 확인하는 타이머 설치
 ```
 
-처음에는 이미지를 빌드하느라 5~10분 걸린다. 끝나면 확인한다.
+끝나면 확인한다.
 
 ```bash
 curl "https://zipfit.duckdns.org/api/auth/email-availability?email=test@test.com"
@@ -127,13 +131,27 @@ sudo systemctl disable --now zipfit-frontend-deploy.timer   # 자동 배포 끄�
 - 카카오 지도 JavaScript 키는 `deploy/.env`의 `VITE_KAKAO_JS_KEY`. 바꾼 뒤 `bash deploy/deploy-frontend.sh`로 다시 빌드한다.
 - **카카오 디벨로퍼스 등록**: 카카오 로그인 Redirect URI `https://zipfit.duckdns.org/oauth/kakao/callback`, 플랫폼 Web 사이트 도메인 `https://zipfit.duckdns.org`.
 
-## 다시 배포할 때 (백엔드)
+## 백엔드 자동 배포
+
+**흐름**: Backend `develop`에 머지 → GitHub Actions가 테스트(`Build & Test`) → 통과하면 서버용(ARM) 이미지를 만들어 GHCR(`ghcr.io/mockdata-capstone/zipfit-backend:develop`, 커밋 SHA 태그도 함께)에 올림 → 서버 타이머가 2분마다 새 이미지를 보고 받아서 교체.
+서버는 빌드하지 않고 이미지를 받기만 해서 부하가 거의 없다. 테스트가 실패하면 이미지가 올라가지 않아 기존 서버가 그대로 돈다.
+교체할 때 15~20초 동안 API가 멈춘다. coturn은 설정이 바뀔 때만, caddy는 `Caddyfile`이 바뀔 때만 다시 띄운다. 업로드한 파일(프로필 이미지)과 HTTPS 인증서는 Docker 볼륨에 있어 남는다.
 
 ```bash
-cd ~/Backend && bash deploy/deploy.sh develop
+journalctl -u zipfit-backend-deploy -n 30                 # 자동 배포 기록
+bash deploy/deploy.sh develop                             # 기다리지 않고 지금 배포
+sudo systemctl stop zipfit-backend-deploy.timer           # 시연 중 잠깐 끄기 (다시 켜기: start)
+sudo systemctl disable --now zipfit-backend-deploy.timer  # 완전히 끄기
 ```
 
-`develop`의 최신 코드를 받아 다시 빌드하고 백엔드를 새 이미지로 다시 띄운다 (15~20초 동안 API가 멈추니 시연 중에는 하지 않는다). coturn은 설정이 바뀔 때만, caddy는 `Caddyfile`이 바뀔 때만 다시 띄운다. 업로드한 파일(프로필 이미지)과 HTTPS 인증서는 Docker 볼륨에 있어 남는다.
+- **되돌리기**: 타이머를 끄고, 되돌릴 커밋의 이미지로 띄운다.
+  ```bash
+  sudo systemctl stop zipfit-backend-deploy.timer
+  cd ~/Backend/deploy && APP_TAG=<커밋 SHA 전체> docker compose up -d --force-recreate --no-deps app
+  ```
+  고친 커밋이 `develop`에 올라오면 `sudo systemctl start zipfit-backend-deploy.timer`로 다시 켠다.
+- **GHCR을 쓸 수 없을 때**: `bash deploy/deploy.sh develop --build` 로 서버에서 직접 빌드한다 (5~10분, 메모리를 많이 써서 그동안 느려진다).
+- **이미지 공개 설정 (처음 한 번)**: 서버가 로그인 없이 받도록 GitHub Organization → Packages → `zipfit-backend` → Package settings → Change visibility → **Public**.
 
 ## 자주 쓰는 명령
 
