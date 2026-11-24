@@ -72,7 +72,6 @@ public enum ErrorCode {
 	NO_COORDINATES(HttpStatus.BAD_REQUEST, "좌표가 없는 위치는 후보지로 추가할 수 없습니다."),
 	DUPLICATE_CANDIDATE(HttpStatus.CONFLICT, "이미 후보지로 추가된 위치입니다."),
 	CANDIDATE_NOT_FOUND(HttpStatus.NOT_FOUND, "이미 제외되었거나 없는 후보지입니다."),
-	NOT_CANDIDATE_OWNER(HttpStatus.FORBIDDEN, "후보지를 추가한 멤버나 호스트만 제외할 수 있습니다."),
 
 	// VOTE 투표
 	ALREADY_VOTED(HttpStatus.CONFLICT, "이미 투표한 후보지입니다. 투표 변경을 이용해주세요."),
