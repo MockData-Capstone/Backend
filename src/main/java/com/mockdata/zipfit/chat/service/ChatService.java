@@ -42,7 +42,8 @@ public class ChatService {
 	 */
 	@Transactional
 	public SendResult send(Long workspaceId, Long userId, String clientMessageId, String content) {
-		WorkspaceMember member = workspaceAccess.requireMember(workspaceId, userId);
+		// 메시지 저장·응답에 Workspace와 작성자가 필요하므로 멤버와 함께 한 번에 가져온다.
+		WorkspaceMember member = workspaceAccess.requireMemberWithWorkspaceAndUser(workspaceId, userId);
 		if (clientMessageId == null || clientMessageId.isBlank()
 			|| clientMessageId.length() > ChatMessage.CLIENT_MESSAGE_ID_MAX_LENGTH) {
 			throw new BusinessException(ErrorCode.INVALID_SOCKET_MESSAGE);
