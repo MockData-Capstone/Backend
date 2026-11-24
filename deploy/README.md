@@ -9,6 +9,7 @@ EC2 한 대에서 Docker로 세 가지를 함께 띄우고, 프론트와 백엔�
 | `coturn` | TURN 서버. 이동통신망처럼 P2P가 막힌 환경에서 WebRTC 영상을 중계한다 |
 
 백엔드와 프론트 모두 `develop`에 CI를 통과한 커밋이 올라오면 서버가 2분 안에 가져가 배포한다 (5번, 6번).
+백엔드는 Tailscale 사설망으로 AI 담당 팀원의 GPU PC에 있는 AI 서버를 부른다 (7번).
 
 서버는 **아시아 태평양(서울) ap-northeast-2**에 있다 (2026-11-22 시드니에서 옮김).
 배포용 DB는 아직 Neon **시드니**(`zipfit-prod`)를 쓴다. Neon에는 서울 리전이 없어 쿼리마다 약 140ms가 더 걸리므로, 나중에 서울 RDS로 옮길 계획이다. 팀 개발용 Neon(싱가포르)은 그대로 쓴다.
@@ -152,6 +153,42 @@ sudo systemctl disable --now zipfit-backend-deploy.timer  # 완전히 끄기
   고친 커밋이 `develop`에 올라오면 `sudo systemctl start zipfit-backend-deploy.timer`로 다시 켠다.
 - **GHCR을 쓸 수 없을 때**: `bash deploy/deploy.sh develop --build` 로 서버에서 직접 빌드한다 (5~10분, 메모리를 많이 써서 그동안 느려진다).
 - **이미지 공개 설정 (처음 한 번)**: 서버가 로그인 없이 받도록 GitHub Organization → Packages → `zipfit-backend` → Package settings → Change visibility → **Public**.
+
+## 7. AI 서버 연결 (Tailscale, 2026-11-24)
+
+AI 서버(학습한 LLM + 카카오 로컬)는 AI 담당 팀원의 GPU PC에서 돈다. PC가 공유기 뒤에 있어 인터넷에서 바로 들어올 수 없으므로 EC2와 PC를 Tailscale(WireGuard 기반 사설망)로 묶는다.
+
+```
+브라우저 ──HTTPS──> EC2 (caddy → app) ──Tailscale──> GPU PC (AI 서버 :8700 → LLM :8810)
+```
+
+| 기기 | Tailscale 이름 | 주소 |
+|---|---|---|
+| EC2 | `zipfit-ec2` | 100.81.67.99 |
+| GPU PC | `zipfit-ai-pc` | 100.121.45.98 |
+
+- `deploy/.env`의 `AI_BASE_URL=http://100.121.45.98:8700` (끝에 `/`를 붙이지 않는다). 자동 배포는 이 값을 건드리지 않는다.
+- AI 서버는 PC의 Tailscale 주소에만 열려 있고, Windows 방화벽도 Tailscale 대역(100.64.0.0/10)만 받는다. EC2 보안 그룹은 바꿀 필요가 없다 (Tailscale은 나가는 연결만 쓴다).
+- 서버 DNS 설정은 그대로 두려고 `tailscale up --hostname zipfit-ec2 --accept-dns=false`로 넣었다.
+
+**새 서버에 다시 연결할 때**
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --hostname zipfit-ec2 --accept-dns=false
+# 출력된 https://login.tailscale.com/a/... 를 GPU PC를 등록한 계정 주인에게 보내 그 계정으로 승인받는다 (다른 계정이면 다른 사설망이 된다)
+tailscale status                                   # zipfit-ai-pc 가 보여야 한다
+curl -s http://100.121.45.98:8700/health           # {"llm": {..., "ok": true}, "kakao": true, ...}
+```
+백엔드 컨테이너 안에서도 닿는지 본다: `docker run --rm --network container:$(docker compose ps -q app) curlimages/curl -s http://100.121.45.98:8700/health`
+
+**확인·문제 해결**
+```bash
+docker compose logs app | grep -i FakeAiClient   # 아무것도 안 나오면 실제 AI 서버를 쓰는 중
+```
+- **PC가 꺼져 있거나 절전이면**: 추천 요청은 연결 대기 3초 뒤 실패하고 분석 상태가 `AI_ERROR`가 된다. 후보지의 경사도·진입성은 그 항목만 비어서 나온다. 사이트는 멈추지 않는다. 시연 기간에는 PC 절전을 끈다.
+- **가짜 응답으로 되돌리기**: `.env`에서 `AI_BASE_URL` 줄을 지우고 `docker compose up -d --force-recreate --no-deps app`.
+- **기기 키 만료**: Tailscale 기기 키는 기본 180일 뒤 만료된다. https://login.tailscale.com/admin/machines 에서 두 기기 모두 **Disable key expiry**를 켜 둔다.
+- GPU PC 쪽 실행·로그는 AI 저장소 `ai_server/README.md`를 따른다.
 
 ## 자주 쓰는 명령
 

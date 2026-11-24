@@ -473,6 +473,7 @@ src/main/java/com/mockdata/zipfit/
 ### AI 서버 연동 (`/api/ai/*`)
 
 백엔드가 자체 GPU 서버의 AI 서버를 호출한다. `AI_BASE_URL`이 없으면 가짜 응답(`FakeAiClient`)으로 동작하므로, AI 서버 없이도 프론트 개발과 테스트를 할 수 있다(추천·입지 결과는 실제 값이 아니다). 요청·응답 형식은 `ai/dto` 패키지가 기준이다.
+AI 서버 구현은 AI 저장소 `ai_server/`에 있다. 배포 서버는 Tailscale 사설망으로 AI 담당 팀원의 GPU PC를 부른다 (`deploy/README.md` 7번). 지금 경사도는 위성 고도로 구한 직선 근사(항상 추정치)이고, 차량 진입성은 팀 촬영 지점만 판정해 그 밖은 `UNKNOWN`이다.
 
 | Endpoint | 요청 | 응답 |
 |---|---|---|
