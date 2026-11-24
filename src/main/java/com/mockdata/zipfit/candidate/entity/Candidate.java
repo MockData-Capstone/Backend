@@ -105,8 +105,4 @@ public class Candidate {
 	public void rename(String name) {
 		this.name = name;
 	}
-
-	public boolean isAddedBy(Long userId) {
-		return addedBy != null && addedBy.getId().equals(userId);
-	}
 }

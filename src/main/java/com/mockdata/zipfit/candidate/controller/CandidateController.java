@@ -57,7 +57,7 @@ public class CandidateController {
 		return candidateService.rename(candidateId, userId, request.name());
 	}
 
-	/** CAND-03 후보지 제외 (추가한 멤버 또는 호스트). 연관 투표도 지운다. */
+	/** CAND-03 후보지 제외 (그룹 멤버 누구나). 연관 투표도 지운다. */
 	@DeleteMapping("/api/candidates/{candidateId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void remove(@CurrentUser Long userId, @PathVariable Long candidateId) {
