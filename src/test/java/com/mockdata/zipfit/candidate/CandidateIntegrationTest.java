@@ -229,17 +229,19 @@ class CandidateIntegrationTest extends AuthTestSupport {
 	}
 
 	@Test
-	@DisplayName("CAND-03 추가한 멤버나 호스트만 제외할 수 있고, 이미 제외된 후보지는 404다")
+	@DisplayName("CAND-03 멤버면 누가 추가한 후보지든 제외할 수 있고, 그룹 밖 회원은 403, 이미 제외된 후보지는 404다")
 	void remove() throws Exception {
 		Fixture f = analyzedWorkspace();
 		String third = joinedMember(f, "third@zipfit.com", "셋째");
+		String outsider = signupLocal("out@zipfit.com", "password1", "외부인").accessToken();
 		Long byGuest = candidateIdOf(add(f.guest(), f.workspaceId(), f.recommendationIds().get(0)));
 		Long byGuest2 = candidateIdOf(add(f.guest(), f.workspaceId(), f.recommendationIds().get(1)));
 
-		mockMvc.perform(bearer(delete("/api/candidates/" + byGuest), third))
+		mockMvc.perform(bearer(delete("/api/candidates/" + byGuest), outsider))
 			.andExpect(status().isForbidden())
-			.andExpect(jsonPath("$.code").value(ErrorCode.NOT_CANDIDATE_OWNER.name()));
-		mockMvc.perform(bearer(delete("/api/candidates/" + byGuest), f.guest()))
+			.andExpect(jsonPath("$.code").value(ErrorCode.NOT_WORKSPACE_MEMBER.name()));
+		// 추가하지 않은 일반 멤버도 제외할 수 있다
+		mockMvc.perform(bearer(delete("/api/candidates/" + byGuest), third))
 			.andExpect(status().isNoContent());
 		mockMvc.perform(bearer(delete("/api/candidates/" + byGuest), f.guest()))
 			.andExpect(status().isNotFound())

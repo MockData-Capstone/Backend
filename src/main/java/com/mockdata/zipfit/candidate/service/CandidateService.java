@@ -130,16 +130,13 @@ public class CandidateService implements CandidateLookup {
 			.getOrDefault(candidateId, VoteSummary.EMPTY));
 	}
 
-	/** CAND-03 추가한 멤버나 호스트만 제외할 수 있다(제안). 연관 투표도 함께 지운다. */
+	/** CAND-03 그룹 멤버면 누가 추가한 후보지든 제외할 수 있다(팀 결정 2026-11-24). 연관 투표도 함께 지운다. */
 	@Transactional
 	public void remove(Long candidateId, Long userId) {
-		Candidate candidate = candidateRepository.findWithAddedById(candidateId)
+		Candidate candidate = candidateRepository.findById(candidateId)
 			.orElseThrow(() -> new BusinessException(ErrorCode.CANDIDATE_NOT_FOUND));
 		Long workspaceId = candidate.getWorkspace().getId();
-		WorkspaceMember member = workspaceAccess.requireMember(workspaceId, userId);
-		if (!member.isHost() && !candidate.isAddedBy(userId)) {
-			throw new BusinessException(ErrorCode.NOT_CANDIDATE_OWNER);
-		}
+		workspaceAccess.requireMember(workspaceId, userId);
 		eventPublisher.publishEvent(new CandidateRemovingEvent(candidateId));
 		candidateRepository.delete(candidate);
 		eventPublisher.publishEvent(new WorkspaceEvent(workspaceId, CANDIDATE_REMOVED, new CandidateRemoved(candidateId)));
