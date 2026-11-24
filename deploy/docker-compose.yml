@@ -3,7 +3,11 @@
 services:
   # 백엔드 (Spring Boot). 밖으로는 열지 않고 caddy를 거쳐서만 받는다.
   app:
+    # GitHub Actions가 테스트를 통과한 커밋으로 만들어 올린 이미지 (APP_TAG = 브랜치, deploy.sh가 .env에 적는다).
+    # deploy.sh --build일 때만 서버에서 직접 빌드해 같은 이름을 붙인다.
+    image: ghcr.io/mockdata-capstone/zipfit-backend:${APP_TAG:-develop}
     build: ..
+    pull_policy: missing
     restart: unless-stopped
     env_file: .env
     environment:

@@ -56,3 +56,40 @@ jobs:
           path: build/reports/tests/test
           retention-days: 7
           if-no-files-found: ignore
+
+  # develop·main에 올라온 커밋이 테스트를 통과하면 서버용(ARM) 이미지를 만들어 GHCR에 올린다.
+  # 서버의 zipfit-backend-deploy.timer가 2분마다 새 이미지를 받아 배포한다 (deploy/README.md 5번).
+  image:
+    name: Server image
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    # 서버(t4g.small)가 ARM이라 ARM 러너에서 바로 빌드한다 (에뮬레이션보다 훨씬 빠르다).
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 태그: 브랜치 이름(서버가 따라가는 태그)과 커밋 SHA(되돌릴 때 쓴다)
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/mockdata-capstone/zipfit-backend:${{ github.ref_name }}
+            ghcr.io/mockdata-capstone/zipfit-backend:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
