@@ -38,3 +38,10 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Local secrets ###
+application-local.properties
+.env
+
+### 로컬 업로드 파일 (프로필 이미지) ###
+uploads/
