@@ -13,6 +13,9 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
 
 	Optional<WorkspaceMember> findByWorkspaceIdAndUserId(Long workspaceId, Long userId);
 
+	@EntityGraph(attributePaths = {"workspace", "user"})
+	Optional<WorkspaceMember> findWithWorkspaceAndUserByWorkspaceIdAndUserId(Long workspaceId, Long userId);
+
 	boolean existsByWorkspaceIdAndUserId(Long workspaceId, Long userId);
 
 	@EntityGraph(attributePaths = "user")
